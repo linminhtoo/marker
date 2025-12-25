@@ -75,20 +75,7 @@ Output:
 {
   "comparison": "The html representation has the labels in the first row and the values in the second row. It should be corrected to have the labels on the left side and the values on the right side.",
   "correction_needed": true,
-  "corrected_html": "<table>
-<tr>
-    <td>Label 1</td>
-    <td>Value 1</td>
-</tr>
-<tr>
-    <td>Label 2</td>
-    <td>Value 2</td>
-</tr>
-<tr>
-    <td>Label 3</td>
-    <td>Value 3</td>
-</tr>
-</table>"
+  "corrected_html": "<table><tr><td>Label 1</td><td>Value 1</td></tr><tr><td>Label 2</td><td>Value 2</td></tr><tr><td>Label 3</td><td>Value 3</td></tr></table>"
 }
 ```
 **Input:**
