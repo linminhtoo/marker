@@ -103,8 +103,8 @@ Section Headers
     ) -> List[dict]:
         selected_blocks = page.structure_blocks(document)
         json_blocks = [
-            self.normalize_block_json(block, document, page, i)
-            for i, block in enumerate(selected_blocks)
+            self.normalize_block_json(block, document, page)
+            for block in selected_blocks
         ]
         return json_blocks
 
