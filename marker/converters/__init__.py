@@ -27,31 +27,45 @@ class BaseConverter:
 
         resolved_kwargs = {}
         for param_name, param in parameters.items():
-            if param_name == 'self':
+            if param_name == "self":
                 continue
-            elif param_name == 'config':
+            elif param_name == "config":
                 resolved_kwargs[param_name] = self.config
             elif param.name in self.artifact_dict:
                 resolved_kwargs[param_name] = self.artifact_dict[param_name]
             elif param.default != inspect.Parameter.empty:
                 resolved_kwargs[param_name] = param.default
             else:
-                raise ValueError(f"Cannot resolve dependency for parameter: {param_name}")
+                raise ValueError(
+                    f"Cannot resolve dependency for parameter: {param_name}"
+                )
 
         return cls(**resolved_kwargs)
 
-    def initialize_processors(self, processor_cls_lst: List[Type[BaseProcessor]]) -> List[BaseProcessor]:
+    def initialize_processors(
+        self, processor_cls_lst: List[Type[BaseProcessor]]
+    ) -> List[BaseProcessor]:
         processors = []
         for processor_cls in processor_cls_lst:
             processors.append(self.resolve_dependencies(processor_cls))
 
-        simple_llm_processors = [p for p in processors if issubclass(type(p), BaseLLMSimpleBlockProcessor)]
-        other_processors = [p for p in processors if not issubclass(type(p), BaseLLMSimpleBlockProcessor)]
+        simple_llm_processors = [
+            p for p in processors if issubclass(type(p), BaseLLMSimpleBlockProcessor)
+        ]
+        other_processors = [
+            p
+            for p in processors
+            if not issubclass(type(p), BaseLLMSimpleBlockProcessor)
+        ]
 
         if not simple_llm_processors:
             return processors
 
-        llm_positions = [i for i, p in enumerate(processors) if issubclass(type(p), BaseLLMSimpleBlockProcessor)]
+        llm_positions = [
+            i
+            for i, p in enumerate(processors)
+            if issubclass(type(p), BaseLLMSimpleBlockProcessor)
+        ]
         insert_position = max(0, llm_positions[-1] - len(simple_llm_processors) + 1)
 
         meta_processor = LLMSimpleBlockMetaProcessor(

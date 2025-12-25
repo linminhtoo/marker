@@ -35,7 +35,9 @@ def build_marker_trace_headers(
     if source_path:
         source_path = str(source_path)
         headers["X-Marker-Source-File"] = os.path.basename(source_path)
-        headers["X-Marker-Source"] = _sanitize_header_value(source_path, max_len=max_source_len)
+        headers["X-Marker-Source"] = _sanitize_header_value(
+            source_path, max_len=max_source_len
+        )
 
     if processor:
         headers["X-Marker-Processor"] = processor
@@ -53,4 +55,3 @@ def build_marker_trace_headers(
             headers[f"X-Marker-{k}"] = v
 
     return sanitize_headers(headers)
-

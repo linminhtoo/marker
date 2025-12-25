@@ -41,7 +41,7 @@ class OcrBuilder(BaseBuilder):
         List[BlockTypes],
         "Blocktypes to skip OCRing by the model in this stage."
         "By default, this avoids recognizing lines inside equations/tables (handled later), figures, and pictures",
-        "Note that we **do not** have to skip group types, since they are not built by this point"
+        "Note that we **do not** have to skip group types, since they are not built by this point",
     ] = [
         BlockTypes.Equation,
         BlockTypes.Figure,
@@ -53,7 +53,7 @@ class OcrBuilder(BaseBuilder):
     full_ocr_block_types: Annotated[
         List[BlockTypes],
         "Blocktypes for which OCR is done at the **block level** instead of line-level."
-        "This feature is still in beta, and should be used sparingly."
+        "This feature is still in beta, and should be used sparingly.",
     ] = [
         BlockTypes.SectionHeader,
         BlockTypes.ListItem,
@@ -70,9 +70,16 @@ class OcrBuilder(BaseBuilder):
     keep_chars: Annotated[bool, "Keep individual characters."] = False
     disable_ocr_math: Annotated[bool, "Disable inline math recognition in OCR"] = False
     drop_repeated_text: Annotated[bool, "Drop repeated text in OCR results."] = False
-    block_mode_intersection_thresh: Annotated[float, "Max intersection before falling back to line mode"] = 0.5
-    block_mode_max_lines: Annotated[int, "Max lines within a block before falling back to line mode"] = 15
-    block_mode_max_height_frac: Annotated[float, "Max height of a block as a percentage of the page before falling back to line mode"] = 0.5
+    block_mode_intersection_thresh: Annotated[
+        float, "Max intersection before falling back to line mode"
+    ] = 0.5
+    block_mode_max_lines: Annotated[
+        int, "Max lines within a block before falling back to line mode"
+    ] = 15
+    block_mode_max_height_frac: Annotated[
+        float,
+        "Max height of a block as a percentage of the page before falling back to line mode",
+    ] = 0.5
 
     def __init__(self, recognition_model: RecognitionPredictor, config=None):
         super().__init__(config)
@@ -80,7 +87,9 @@ class OcrBuilder(BaseBuilder):
         self.recognition_model = recognition_model
 
     def __call__(self, document: Document, provider: PdfProvider):
-        pages_to_ocr = [page for page in document.pages if page.text_extraction_method == 'surya']
+        pages_to_ocr = [
+            page for page in document.pages if page.text_extraction_method == "surya"
+        ]
         ocr_page_images, block_polygons, block_ids, block_original_texts = (
             self.get_ocr_images_polygons_ids(document, pages_to_ocr, provider)
         )
@@ -103,14 +112,21 @@ class OcrBuilder(BaseBuilder):
         return 32
 
     def select_ocr_blocks_by_mode(
-        self, page: PageGroup, block: Block, block_lines: List[Block], page_max_intersection_pct: float
+        self,
+        page: PageGroup,
+        block: Block,
+        block_lines: List[Block],
+        page_max_intersection_pct: float,
     ):
-        if any([
-            page_max_intersection_pct > self.block_mode_intersection_thresh,
-            block.block_type not in self.full_ocr_block_types,
-            len(block_lines) > self.block_mode_max_lines,
-            block.polygon.height >= self.block_mode_max_height_frac * page.polygon.height
-        ]):
+        if any(
+            [
+                page_max_intersection_pct > self.block_mode_intersection_thresh,
+                block.block_type not in self.full_ocr_block_types,
+                len(block_lines) > self.block_mode_max_lines,
+                block.polygon.height
+                >= self.block_mode_max_height_frac * page.polygon.height,
+            ]
+        ):
             # Line mode
             return block_lines
 
@@ -129,14 +145,18 @@ class OcrBuilder(BaseBuilder):
 
             page_size = provider.get_page_bbox(document_page.page_id).size
             image_size = page_highres_image.size
-            max_intersection_pct = document_page.compute_max_structure_block_intersection_pct()
+            max_intersection_pct = (
+                document_page.compute_max_structure_block_intersection_pct()
+            )
             for block in document_page.structure_blocks(document):
                 if block.block_type in self.skip_ocr_blocks:
                     # Skip OCR
                     continue
 
                 block_lines = block.contained_blocks(document, [BlockTypes.Line])
-                blocks_to_ocr = self.select_ocr_blocks_by_mode(document_page, block, block_lines, max_intersection_pct)
+                blocks_to_ocr = self.select_ocr_blocks_by_mode(
+                    document_page, block, block_lines, max_intersection_pct
+                )
 
                 block.text_extraction_method = "surya"
                 for block in blocks_to_ocr:
@@ -185,10 +205,12 @@ class OcrBuilder(BaseBuilder):
             math_mode=not self.disable_ocr_math,
             drop_repeated_text=self.drop_repeated_text,
             max_sliding_window=2148,
-            max_tokens=2048
+            max_tokens=2048,
         )
 
-        assert len(recognition_results) == len(images) == len(pages) == len(block_ids), (
+        assert (
+            len(recognition_results) == len(images) == len(pages) == len(block_ids)
+        ), (
             f"Mismatch in OCR lengths: {len(recognition_results)}, {len(images)}, {len(pages)}, {len(block_ids)}"
         )
         for document_page, page_recognition_result, page_block_ids, image in zip(
@@ -201,7 +223,7 @@ class OcrBuilder(BaseBuilder):
                     continue
                 if not fix_text(block_ocr_result.text):
                     continue
-                
+
                 block = document_page.get_block(block_id)
                 # This is a nested list of spans, so multiple lines are supported
                 all_line_spans = self.spans_from_html_chars(
@@ -209,11 +231,15 @@ class OcrBuilder(BaseBuilder):
                 )
                 if block.block_type == BlockTypes.Line:
                     # flatten all spans across lines
-                    flat_spans = [s for line_spans in all_line_spans for s in line_spans]
+                    flat_spans = [
+                        s for line_spans in all_line_spans for s in line_spans
+                    ]
                     self.replace_line_spans(document, document_page, block, flat_spans)
                 else:
                     # Clear out any old lines. Mark as removed for the json ocr renderer
-                    for line in block.contained_blocks(document_page, block_types=[BlockTypes.Line]):
+                    for line in block.contained_blocks(
+                        document_page, block_types=[BlockTypes.Line]
+                    ):
                         line.removed = True
                     block.structure = []
 
@@ -223,11 +249,13 @@ class OcrBuilder(BaseBuilder):
                         new_line = Line(
                             polygon=block.polygon,
                             page_id=block.page_id,
-                            text_extraction_method="surya"
+                            text_extraction_method="surya",
                         )
                         document_page.add_full_block(new_line)
                         block.add_structure(new_line)
-                        self.replace_line_spans(document, document_page, new_line, line_spans)
+                        self.replace_line_spans(
+                            document, document_page, new_line, line_spans
+                        )
 
     # TODO Fix polygons when we cut the span into multiple spans
     def link_and_break_span(self, span: Span, text: str, match_text, url: str):

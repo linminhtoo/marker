@@ -12,11 +12,11 @@ class LLMEquationProcessor(BaseLLMSimpleBlockProcessor):
     min_equation_height: Annotated[
         float,
         "The minimum ratio between equation height and page height to consider for processing.",
-     ] = 0.06
+    ] = 0.06
     image_expansion_ratio: Annotated[
         float,
         "The ratio to expand the image by when cropping.",
-    ] = 0.05 # Equations sometimes get bboxes that are too tight
+    ] = 0.05  # Equations sometimes get bboxes that are too tight
     redo_inline_math: Annotated[
         bool,
         "Whether to redo inline math blocks.",
@@ -24,7 +24,7 @@ class LLMEquationProcessor(BaseLLMSimpleBlockProcessor):
     equation_latex_prompt: Annotated[
         str,
         "The prompt to use for generating LaTeX from equations.",
-        "Default is a string containing the Gemini prompt."
+        "Default is a string containing the Gemini prompt.",
     ] = r"""You're an expert mathematician who is good at writing LaTeX code and html for equations.
 You'll receive an image of a math block, along with the text extracted from the block.  It may contain one or more equations. Your job is to write html that represents the content of the image, with the equations in LaTeX format.
 
@@ -76,10 +76,13 @@ analysis: The equations are not formatted as LaTeX, or enclosed in math tags.
             page = block_data["page"]
 
             # If we redo inline math, we redo all equations
-            if all([
-                block.polygon.height / page.polygon.height < self.min_equation_height,
-                not self.redo_inline_math
-            ]):
+            if all(
+                [
+                    block.polygon.height / page.polygon.height
+                    < self.min_equation_height,
+                    not self.redo_inline_math,
+                ]
+            ):
                 continue
             out_blocks.append(block_data)
         return out_blocks
@@ -92,18 +95,21 @@ analysis: The equations are not formatted as LaTeX, or enclosed in math tags.
             prompt = self.equation_latex_prompt.replace("{equation}", text)
             image = self.extract_image(document, block)
 
-            prompt_data.append({
-                "prompt": prompt,
-                "image": image,
-                "block": block,
-                "schema": EquationSchema,
-                "page": block_data["page"]
-            })
+            prompt_data.append(
+                {
+                    "prompt": prompt,
+                    "image": image,
+                    "block": block,
+                    "schema": EquationSchema,
+                    "page": block_data["page"],
+                }
+            )
 
         return prompt_data
 
-
-    def rewrite_block(self, response: dict, prompt_data: PromptData, document: Document):
+    def rewrite_block(
+        self, response: dict, prompt_data: PromptData, document: Document
+    ):
         block = prompt_data["block"]
         text = block.html if block.html else block.raw_text(document)
 
@@ -117,15 +123,18 @@ analysis: The equations are not formatted as LaTeX, or enclosed in math tags.
             return
 
         balanced_tags = html_equation.count("<math") == html_equation.count("</math>")
-        if not all([
-            html_equation,
-            balanced_tags,
-            len(html_equation) > len(text) * .3,
-        ]):
+        if not all(
+            [
+                html_equation,
+                balanced_tags,
+                len(html_equation) > len(text) * 0.3,
+            ]
+        ):
             block.update_metadata(llm_error_count=1)
             return
 
         block.html = html_equation
+
 
 class EquationSchema(BaseModel):
     analysis: str

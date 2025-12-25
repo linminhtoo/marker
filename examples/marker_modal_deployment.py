@@ -16,19 +16,24 @@ image = (
     modal.Image.debian_slim(python_version="3.10")
     .apt_install(["git", "wget"])
     .env({"TORCH_DEVICE": "cuda"})
-    .pip_install([
-        "marker-pdf[full]",
-        "fastapi==0.104.1",
-        "uvicorn==0.24.0",
-        "python-multipart==0.0.6",
-        "torch>=2.2.2,<3.0.0",
-        "torchvision>=0.17.0",
-        "torchaudio>=2.2.0",
-    ])
+    .pip_install(
+        [
+            "marker-pdf[full]",
+            "fastapi==0.104.1",
+            "uvicorn==0.24.0",
+            "python-multipart==0.0.6",
+            "torch>=2.2.2,<3.0.0",
+            "torchvision>=0.17.0",
+            "torchaudio>=2.2.0",
+        ]
+    )
 )
 
 # Create a persistent volume for model caching
-models_volume = modal.Volume.from_name("marker-models-modal-demo", create_if_missing=True)
+models_volume = modal.Volume.from_name(
+    "marker-models-modal-demo", create_if_missing=True
+)
+
 
 def setup_models_with_cache_check(logger, commit_volume=False):
     """
@@ -48,7 +53,9 @@ def setup_models_with_cache_check(logger, commit_volume=False):
     if models_dir_exists and models_dir_contents:
         logger.info("Found existing models in volume cache, loading from cache...")
     else:
-        logger.warning("No models found in volume cache. Models will be downloaded now (this may take several minutes).")
+        logger.warning(
+            "No models found in volume cache. Models will be downloaded now (this may take several minutes)."
+        )
 
     # Create/load models
     models = create_model_dict()
@@ -67,6 +74,7 @@ def setup_models_with_cache_check(logger, commit_volume=False):
         logger.info("Volume committed successfully")
 
     return models
+
 
 @app.function(
     image=image,
@@ -93,11 +101,12 @@ def download_models():
         logger.error(f"Failed to download models: {e}")
         raise
 
+
 @app.cls(
     image=image,
     gpu=GPU_TYPE,
     memory=16384,
-    timeout=600,   # 10 minute timeout for large documents
+    timeout=600,  # 10 minute timeout for large documents
     volumes={MODEL_PATH_PREFIX: models_volume},
     scaledown_window=300,
 )
@@ -108,7 +117,9 @@ class MarkerModalDemoService:
         import logging
         import traceback
 
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(
+            level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+        )
         logger = logging.getLogger(__name__)
 
         logger.info("Loading Marker models using @modal.enter()...")
@@ -136,7 +147,9 @@ class MarkerModalDemoService:
         from marker.config.parser import ConfigParser
         from marker.settings import settings
 
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(
+            level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+        )
         logger = logging.getLogger(__name__)
 
         @asynccontextmanager
@@ -151,12 +164,12 @@ class MarkerModalDemoService:
             title="Datalab Marker PDF Conversion Service - Modal Demo",
             description="Convert PDFs and documents to markdown, JSON, or HTML using Marker, deployed on Modal",
             version="1.0.0",
-            lifespan=lifespan
+            lifespan=lifespan,
         )
 
         @web_app.get("/health")
         async def health_check():
-            models_loaded = hasattr(self, 'models') and self.models is not None
+            models_loaded = hasattr(self, "models") and self.models is not None
             model_count = len(self.models) if models_loaded else 0
 
             # Check volume contents for debugging
@@ -169,7 +182,7 @@ class MarkerModalDemoService:
                 "model_count": model_count,
                 "cache_dir": MODEL_PATH_PREFIX,
                 "cache_exists": cache_exists,
-                "cache_contents": cache_contents[:10]
+                "cache_contents": cache_contents[:10],
             }
 
         @web_app.post("/convert")
@@ -183,24 +196,27 @@ class MarkerModalDemoService:
         ):
             """Convert uploaded document to specified format."""
 
-            if not hasattr(self, 'models') or self.models is None:
+            if not hasattr(self, "models") or self.models is None:
                 logger.error("Models not available for conversion")
-                raise HTTPException(status_code=503, detail="Models not loaded yet. Please wait for model initialization.")
+                raise HTTPException(
+                    status_code=503,
+                    detail="Models not loaded yet. Please wait for model initialization.",
+                )
 
             # Validate file type
-            allowed_extensions = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp'}
+            allowed_extensions = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp"}
             file_ext = Path(file.filename).suffix.lower()
             if file_ext not in allowed_extensions:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Unsupported file type: {file_ext}. Supported: {allowed_extensions}"
+                    detail=f"Unsupported file type: {file_ext}. Supported: {allowed_extensions}",
                 )
 
             # Validate output format
             if output_format not in ["markdown", "json", "html", "chunks"]:
                 raise HTTPException(
                     status_code=400,
-                    detail="Output format must be one of: markdown, json, html, chunks"
+                    detail="Output format must be one of: markdown, json, html, chunks",
                 )
 
             try:
@@ -250,6 +266,7 @@ class MarkerModalDemoService:
                     json_content = rendered_output.model_dump()
                 else:
                     from marker.output import text_from_rendered
+
                     text, _, images = text_from_rendered(rendered_output)
 
                     # Assign to appropriate content field
@@ -262,7 +279,9 @@ class MarkerModalDemoService:
                     for img_name, img_obj in images.items():
                         byte_stream = io.BytesIO()
                         img_obj.save(byte_stream, format=settings.OUTPUT_IMAGE_FORMAT)
-                        encoded_images[img_name] = base64.b64encode(byte_stream.getvalue()).decode('utf-8')
+                        encoded_images[img_name] = base64.b64encode(
+                            byte_stream.getvalue()
+                        ).decode("utf-8")
 
                 metadata = rendered_output.metadata
 
@@ -271,17 +290,19 @@ class MarkerModalDemoService:
                 # Clean up temp file
                 os.unlink(temp_path)
 
-                return JSONResponse({
-                    "success": True,
-                    "filename": file.filename,
-                    "output_format": output_format,
-                    "json": json_content,
-                    "html": html_content,
-                    "markdown": markdown_content,
-                    "images": encoded_images,
-                    "metadata": metadata,
-                    "page_count": len(metadata.get("page_stats", [])),
-                })
+                return JSONResponse(
+                    {
+                        "success": True,
+                        "filename": file.filename,
+                        "output_format": output_format,
+                        "json": json_content,
+                        "html": html_content,
+                        "markdown": markdown_content,
+                        "images": encoded_images,
+                        "metadata": metadata,
+                        "page_count": len(metadata.get("page_stats", [])),
+                    }
+                )
 
             except Exception as e:
                 # Clean up temp file if it exists
@@ -292,8 +313,7 @@ class MarkerModalDemoService:
                 traceback.print_exc()
 
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"Conversion failed: {str(e)}"
+                    status_code=500, detail=f"Conversion failed: {str(e)}"
                 )
 
         return web_app
@@ -306,9 +326,7 @@ class MarkerModalDemoService:
 #
 @app.local_entrypoint()
 async def invoke_conversion(
-    pdf_file: Optional[str] = None,
-    output_format: str = "markdown",
-    env: str = 'main'
+    pdf_file: Optional[str] = None, output_format: str = "markdown", env: str = "main"
 ):
     """
     Local entrypoint to test your deployed Marker endpoint in Modal.
@@ -334,15 +352,15 @@ async def invoke_conversion(
     #
     try:
         service = modal.Cls.from_name(
-            "datalab-marker-modal-demo",
-            "MarkerModalDemoService",
-            environment_name=env
+            "datalab-marker-modal-demo", "MarkerModalDemoService", environment_name=env
         )
         web_url = service().marker_api.get_web_url()
         print(f"Found deployed service at: {web_url}")
     except Exception as e:
         print(f"Error getting web URL: {e}")
-        print("Make sure you've deployed the service first with: modal deploy marker_modal_deployment.py")
+        print(
+            "Make sure you've deployed the service first with: modal deploy marker_modal_deployment.py"
+        )
         return
 
     print(f"Testing conversion of: {pdf_path.name}")
@@ -355,9 +373,11 @@ async def invoke_conversion(
         health_response = requests.get(f"{web_url}/health")
         health_data = health_response.json()
         print(f"Service health: {health_data['status']}")
-        print(f"Models loaded: {health_data['models_loaded']} ({health_data['model_count']} models)")
+        print(
+            f"Models loaded: {health_data['models_loaded']} ({health_data['model_count']} models)"
+        )
 
-        if not health_data['models_loaded']:
+        if not health_data["models_loaded"]:
             print("Warning: Models not loaded yet. First request may be slow.")
 
     except Exception as e:
@@ -367,26 +387,26 @@ async def invoke_conversion(
     # Make conversion request
     #
     try:
-        with open(pdf_path, 'rb') as f:
-            files = {'file': (pdf_path.name, f, 'application/pdf')}
-            data = {'output_format': output_format}
+        with open(pdf_path, "rb") as f:
+            files = {"file": (pdf_path.name, f, "application/pdf")}
+            data = {"output_format": output_format}
 
             print(f"Sending request to {web_url}/convert...")
             response = requests.post(f"{web_url}/convert", files=files, data=data)
 
         if response.status_code == 200:
             result = response.json()
-            print(f"✅ Conversion successful!")
+            print("✅ Conversion successful!")
             print(f"Filename: {result['filename']}")
             print(f"Format: {result['output_format']}")
             print(f"Pages: {result['page_count']}")
 
             output_file = f"{pdf_path.stem}_response.json"
-            with open(output_file, 'w', encoding='utf-8') as f:
+            with open(output_file, "w", encoding="utf-8") as f:
                 json.dump(result, f, indent=2, ensure_ascii=False)
             print(f"Full API response saved to: {output_file}")
 
-            if result['images']:
+            if result["images"]:
                 print(f"Images extracted: {len(result['images'])}")
 
         else:

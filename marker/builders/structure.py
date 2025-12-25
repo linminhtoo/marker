@@ -13,6 +13,7 @@ class StructureBuilder(BaseBuilder):
     """
     A builder for grouping blocks together based on their structure.
     """
+
     gap_threshold: Annotated[
         float,
         "The minimum gap between blocks to consider them part of the same group.",
@@ -38,7 +39,11 @@ class StructureBuilder(BaseBuilder):
 
         for i, block_id in enumerate(static_page_structure):
             block = page.get_block(block_id)
-            if block.block_type not in [BlockTypes.Table, BlockTypes.Figure, BlockTypes.Picture]:
+            if block.block_type not in [
+                BlockTypes.Table,
+                BlockTypes.Figure,
+                BlockTypes.Picture,
+            ]:
                 continue
 
             if block.id in remove_ids:
@@ -51,22 +56,28 @@ class StructureBuilder(BaseBuilder):
             prev_block = page.get_prev_block(block)
             next_block = page.get_next_block(block)
 
-            if prev_block and \
-                prev_block.block_type in caption_types and \
-                prev_block.polygon.minimum_gap(block.polygon) < gap_threshold_px and \
-                    prev_block.id not in remove_ids:
+            if (
+                prev_block
+                and prev_block.block_type in caption_types
+                and prev_block.polygon.minimum_gap(block.polygon) < gap_threshold_px
+                and prev_block.id not in remove_ids
+            ):
                 block_structure.insert(0, prev_block.id)
                 selected_polygons.append(prev_block.polygon)
 
-            if next_block and \
-                    next_block.block_type in caption_types and \
-                    next_block.polygon.minimum_gap(block.polygon) < gap_threshold_px:
+            if (
+                next_block
+                and next_block.block_type in caption_types
+                and next_block.polygon.minimum_gap(block.polygon) < gap_threshold_px
+            ):
                 block_structure.append(next_block.id)
                 selected_polygons.append(next_block.polygon)
 
             if len(block_structure) > 1:
                 # Create a merged block
-                new_block_cls = get_block_class(BlockTypes[block.block_type.name + "Group"])
+                new_block_cls = get_block_class(
+                    BlockTypes[block.block_type.name + "Group"]
+                )
                 new_polygon = block.polygon.merge(selected_polygons)
                 group_block = page.add_block(new_block_cls, new_polygon)
                 group_block.structure = block_structure
@@ -91,12 +102,15 @@ class StructureBuilder(BaseBuilder):
             block_structure = [block_id]
             selected_polygons = [block.polygon]
 
-            for j, next_block_id in enumerate(page.structure[i + 1:]):
+            for j, next_block_id in enumerate(page.structure[i + 1 :]):
                 next_block = page.get_block(next_block_id)
-                if all([
-                    next_block.block_type == BlockTypes.ListItem,
-                    next_block.polygon.minimum_gap(selected_polygons[-1]) < gap_threshold_px
-                ]):
+                if all(
+                    [
+                        next_block.block_type == BlockTypes.ListItem,
+                        next_block.polygon.minimum_gap(selected_polygons[-1])
+                        < gap_threshold_px,
+                    ]
+                ):
                     block_structure.append(next_block_id)
                     selected_polygons.append(next_block.polygon)
                 else:
