@@ -27,16 +27,23 @@ class Downloader:
                 data = json.load(f)
             rows.append(data)
 
-        out_ds = datasets.Dataset.from_list(rows, features=datasets.Features({
-            "md": datasets.Value("string"),
-            "uuid": datasets.Value("string"),
-            "time": datasets.Value("float"),
-        }))
+        out_ds = datasets.Dataset.from_list(
+            rows,
+            features=datasets.Features(
+                {
+                    "md": datasets.Value("string"),
+                    "uuid": datasets.Value("string"),
+                    "time": datasets.Value("float"),
+                }
+            ),
+        )
         out_ds.push_to_hub(f"datalab-to/marker_benchmark_{self.service}", private=True)
 
     def generate_data(self):
         max_rows = self.max_rows
-        for idx, sample in tqdm(enumerate(self.ds), desc=f"Saving {self.service} results"):
+        for idx, sample in tqdm(
+            enumerate(self.ds), desc=f"Saving {self.service} results"
+        ):
             cache_file = self.cache_path / f"{idx}.json"
             if cache_file.exists():
                 continue

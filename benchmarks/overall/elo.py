@@ -1,9 +1,7 @@
 import json
 import random
-import time
 import os
-from dataclasses import dataclass
-from typing import List, Dict, Tuple, Literal
+from typing import Literal
 from PIL import Image
 from collections import defaultdict
 import tabulate
@@ -15,7 +13,6 @@ from google.genai.errors import APIError
 from pydantic import BaseModel
 from tqdm import tqdm
 
-from marker.settings import settings
 
 rating_prompt = """
 You're a document analysis expert who is comparing two different markdown samples to an image to see which one represents the content of the image better. The markdown will be called version A and version B.
@@ -90,6 +87,7 @@ Version B
 **Output**
 """
 
+
 class ComparerSchema(BaseModel):
     image_description: str
     version_a_description: str
@@ -102,18 +100,15 @@ class Comparer:
     def __init__(self):
         pass
 
-    def __call__(
-        self,
-        img: Image.Image,
-        version_a: str,
-        version_b: str
-    ) -> str | None:
+    def __call__(self, img: Image.Image, version_a: str, version_b: str) -> str | None:
         if version_a is None and version_b is not None:
             return "version_b"
         elif version_b is None and version_a is not None:
             return "version_a"
 
-        hydrated_prompt = rating_prompt.replace("{{version_a}}", version_a).replace("{{version_b}}", version_b)
+        hydrated_prompt = rating_prompt.replace("{{version_a}}", version_a).replace(
+            "{{version_b}}", version_b
+        )
         try:
             rating = self.llm_rater(img, hydrated_prompt)
         except Exception as e:
@@ -121,12 +116,8 @@ class Comparer:
             return
         return rating
 
-
     def llm_rater(self, img: Image.Image, prompt: str):
-        response = self.llm_response_wrapper(
-            [img, prompt],
-            ComparerSchema
-        )
+        response = self.llm_response_wrapper([img, prompt], ComparerSchema)
         assert "winner" in response, f"Response missing 'winner' key: {response}"
         return response["winner"]
 
@@ -153,8 +144,8 @@ class Comparer:
             )
             output = responses.candidates[0].content.parts[0].text
             return json.loads(output)
-        except APIError as e:
-            print(f"Hit Gemini rate limit")
+        except APIError:
+            print("Hit Gemini rate limit")
             return
         except Exception as e:
             print(f"Error: {e}")
@@ -167,22 +158,29 @@ def display_win_rates_table(win_rates: dict):
     for method_a, method_b_dict in win_rates.items():
         row = [method_a]
         for method_b, results in method_b_dict.items():
-            row = [method_a, method_b, results["win"], results["loss"], (results["win"] / (results["win"] + results["loss"])) * 100]
+            row = [
+                method_a,
+                method_b,
+                results["win"],
+                results["loss"],
+                (results["win"] / (results["win"] + results["loss"])) * 100,
+            ]
             table.append(row)
     print(tabulate.tabulate(table, headers=headers, tablefmt="pretty"))
 
 
 @click.command("Calculate win rates for document conversion methods")
 @click.argument("dataset", type=str)
-@click.option("--methods", type=str, help="List of methods to compare: comma separated like marker,mathpix")
+@click.option(
+    "--methods",
+    type=str,
+    help="List of methods to compare: comma separated like marker,mathpix",
+)
 @click.option("--row_samples", type=int, default=2, help="Number of samples per row")
-@click.option("--max_rows", type=int, default=None, help="Maximum number of rows to process")
-def main(
-    dataset: str,
-    methods: str,
-    row_samples: int,
-    max_rows: int
-):
+@click.option(
+    "--max_rows", type=int, default=None, help="Maximum number of rows to process"
+)
+def main(dataset: str, methods: str, row_samples: int, max_rows: int):
     ds = datasets.load_dataset(dataset, split="train")
     method_lst = methods.split(",")
     win_rates = {m: defaultdict(lambda: defaultdict(int)) for m in method_lst}

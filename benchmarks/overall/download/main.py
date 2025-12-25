@@ -21,5 +21,6 @@ def main(service: str, max_rows: int, api_key: str, app_id: str):
     # Generate data and upload to hub
     downloader()
 
+
 if __name__ == "__main__":
     main()

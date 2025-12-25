@@ -10,7 +10,6 @@ from google import genai
 import pypdfium2 as pdfium
 
 from benchmarks.overall.scorers import BaseScorer, BlockScores
-from marker.settings import settings
 
 rating_prompt = """
 You're a document analysis expert who is comparing some markdown to an image to make sure the markdown is correct. You're rating how effectively the provided markdown represents the full text and formatting in the image provided.
@@ -87,8 +86,17 @@ Output
 comparison_keys = ["comparison"]
 description_keys = ["image_description", "markdown_description"]
 text_keys = comparison_keys + description_keys
-score_keys = ["overall", "text", "formatting", "section_headers", "tables", "forms", "equations",
-            "lists", "images"]
+score_keys = [
+    "overall",
+    "text",
+    "formatting",
+    "section_headers",
+    "tables",
+    "forms",
+    "equations",
+    "lists",
+    "images",
+]
 
 
 class LLMScorer(BaseScorer):
@@ -99,21 +107,17 @@ class LLMScorer(BaseScorer):
             f.flush()
             f.seek(0)
             doc = pdfium.PdfDocument(f.name)
-            img = doc[0].render(scale=96/72).to_pil()
+            img = doc[0].render(scale=96 / 72).to_pil()
             doc.close()
 
         return self.llm_rater(img, markdown)
-
 
     def llm_rater(self, img: Image.Image, markdown: str) -> BlockScores:
         if not markdown:
             null_scores = {k: 1 for k in score_keys}
             text_scores = {k: "" for k in text_keys}
             null_scores.update(text_scores)
-            return {
-                "score": 1,
-                "specific_scores": null_scores
-            }
+            return {"score": 1, "specific_scores": null_scores}
         req_keys = text_keys + score_keys
         properties = {}
         for key in req_keys:
@@ -123,11 +127,13 @@ class LLMScorer(BaseScorer):
         response_schema = {
             "required": req_keys,
             "properties": properties,
-            "type": "OBJECT"
+            "type": "OBJECT",
         }
         prompt = rating_prompt.replace("{{markdown}}", markdown)
         response = self.llm_response_wrapper([img, prompt], response_schema)
-        assert all([k in response for k in req_keys]), f"Missing keys in response: {response}"
+        assert all([k in response for k in req_keys]), (
+            f"Missing keys in response: {response}"
+        )
         return {
             "score": response["overall"],
             "specific_scores": response,
@@ -153,7 +159,7 @@ class LLMScorer(BaseScorer):
             output = responses.candidates[0].content.parts[0].text
             return json.loads(output)
         except APIError as e:
-            print(f"Hit Gemini rate limit, waiting 120 seconds")
+            print("Hit Gemini rate limit, waiting 120 seconds")
             time.sleep(120)
             if depth > 2:
                 raise e

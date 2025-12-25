@@ -16,7 +16,4 @@ class LlamaParseMethod(BaseMethod):
         if not data:
             raise ValueError(f"Could not find data for uuid {uuid}")
 
-        return {
-            "markdown": data["md"],
-            "time": data["time"]
-        }
+        return {"markdown": data["md"], "time": data["time"]}

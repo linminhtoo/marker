@@ -25,31 +25,24 @@ class MathpixDownloader(Downloader):
         if isinstance(md, bytes):
             md = md.decode("utf-8")
 
-        return {
-            "md": md,
-            "time": end - start
-        }
+        return {"md": md, "time": end - start}
+
 
 def mathpix_request(buffer, headers):
-    response = requests.post("https://api.mathpix.com/v3/pdf",
+    response = requests.post(
+        "https://api.mathpix.com/v3/pdf",
         headers=headers,
         data={
             "options_json": json.dumps(
-                {
-                    "conversion_formats": {
-                        "md": True,
-                        "html": True
-                    }
-                }
+                {"conversion_formats": {"md": True, "html": True}}
             )
         },
-        files={
-            "file": buffer
-        }
+        files={"file": buffer},
     )
     data = response.json()
     pdf_id = data["pdf_id"]
     return pdf_id
+
 
 def mathpix_status(pdf_id, headers):
     max_iters = 120
@@ -58,8 +51,8 @@ def mathpix_status(pdf_id, headers):
     status2 = "processing"
     while i < max_iters:
         time.sleep(1)
-        response = requests.get(f"https://api.mathpix.com/v3/converter/{pdf_id}",
-            headers=headers
+        response = requests.get(
+            f"https://api.mathpix.com/v3/converter/{pdf_id}", headers=headers
         )
         status_resp = response.json()
         if "conversion_status" not in status_resp:
@@ -70,11 +63,14 @@ def mathpix_status(pdf_id, headers):
             break
         elif status == "error" or status2 == "error":
             break
-    out_status = "completed" if status == "completed" and status2 == "completed" else "error"
+    out_status = (
+        "completed" if status == "completed" and status2 == "completed" else "error"
+    )
     return out_status
 
+
 def mathpix_results(pdf_id, headers, ext="md"):
-    response = requests.get(f"https://api.mathpix.com/v3/converter/{pdf_id}.{ext}",
-        headers=headers
+    response = requests.get(
+        f"https://api.mathpix.com/v3/converter/{pdf_id}.{ext}", headers=headers
     )
     return response.content

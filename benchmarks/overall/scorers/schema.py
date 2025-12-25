@@ -1,4 +1,4 @@
-from typing import TypedDict, List, Optional, Dict
+from typing import TypedDict, List, Dict
 
 
 class BlockScores(TypedDict):

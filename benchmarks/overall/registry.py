@@ -8,10 +8,7 @@ from benchmarks.overall.methods.olmocr import OlmOCRMethod
 from benchmarks.overall.scorers.heuristic import HeuristicScorer
 from benchmarks.overall.scorers.llm import LLMScorer
 
-SCORE_REGISTRY = {
-    "heuristic": HeuristicScorer,
-    "llm": LLMScorer
-}
+SCORE_REGISTRY = {"heuristic": HeuristicScorer, "llm": LLMScorer}
 
 METHOD_REGISTRY = {
     "marker": MarkerMethod,
@@ -20,5 +17,5 @@ METHOD_REGISTRY = {
     "llamaparse": LlamaParseMethod,
     "docling": DoclingMethod,
     "olmocr": OlmOCRMethod,
-    "mistral": MistralMethod
+    "mistral": MistralMethod,
 }

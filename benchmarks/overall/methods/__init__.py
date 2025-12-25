@@ -1,7 +1,5 @@
 import io
-import random
 import re
-from typing import Tuple
 
 import markdown2
 from PIL import Image
@@ -47,10 +45,10 @@ class BaseMethod:
             inline_placeholders.append((placeholder, f"${content}$"))
             return placeholder
 
-        md = re.sub(r'\${2}(.*?)\${2}', block_sub, md, flags=re.DOTALL)
-        md = re.sub(r'\$(.*?)\$', inline_sub, md)
+        md = re.sub(r"\${2}(.*?)\${2}", block_sub, md, flags=re.DOTALL)
+        md = re.sub(r"\$(.*?)\$", inline_sub, md)
 
-        html = markdown2.markdown(md, extras=['tables'])
+        html = markdown2.markdown(md, extras=["tables"])
 
         # Replace placeholders
         for placeholder, math_str in block_placeholders:

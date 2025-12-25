@@ -7,5 +7,7 @@ class BaseScorer:
     def __init__(self):
         pass
 
-    def __call__(self, sample, gt_markdown: List[str], method_markdown: str) -> BlockScores:
+    def __call__(
+        self, sample, gt_markdown: List[str], method_markdown: str
+    ) -> BlockScores:
         raise NotImplementedError()

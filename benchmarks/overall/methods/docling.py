@@ -10,6 +10,7 @@ class DoclingMethod(BaseMethod):
 
     def __call__(self, sample) -> BenchmarkResult:
         from docling.document_converter import DocumentConverter
+
         pdf_bytes = sample["pdf"]  # This is a single page PDF
         converter = DocumentConverter()
 
@@ -19,8 +20,4 @@ class DoclingMethod(BaseMethod):
             result = converter.convert(f.name)
             total = time.time() - start
 
-        return {
-            "markdown": result.document.export_to_markdown(),
-            "time": total
-        }
-
+        return {"markdown": result.document.export_to_markdown(), "time": total}

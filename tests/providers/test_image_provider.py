@@ -10,8 +10,7 @@ def test_image_provider(config, temp_image):
     page_lines = provider.get_page_lines(0)
     assert len(page_lines) == 0
 
+
 def test_image_provider_conversion(pdf_converter, temp_image):
     markdown_output: MarkdownOutput = pdf_converter(temp_image.name)
     assert "Hello, World!" in markdown_output.markdown
-
-
