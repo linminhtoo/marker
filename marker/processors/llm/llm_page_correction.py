@@ -6,6 +6,7 @@ from typing import List, Annotated, Literal, cast
 from marker.logger import get_logger
 from marker.processors.llm import BaseLLMComplexBlockProcessor
 from marker.processors.llm.llm_utils import (
+    inject_analysis_prompt,
     strip_code_fences,
     string_indicates_no_corrections,
 )
@@ -67,6 +68,10 @@ ALL_TAGS = FORMAT_TAGS + [tag for tags in BLOCK_MAP.values() for tag in tags]
 
 
 class LLMPageCorrectionProcessor(BaseLLMComplexBlockProcessor):
+    analysis_style: Annotated[
+        str,
+        "How to structure the LLM analysis field: 'summary' or 'auto'.",
+    ] = "summary"
     block_correction_prompt: Annotated[
         str | None,
         "The user prompt to guide the block correction process. If None, will use `default_user_prompt`.",
@@ -105,9 +110,9 @@ Guidelines:
 **Instructions:**
 1. Carefully examine the provided JSON representation of the page, along with the image.
 2. Analyze the user prompt.
-3. Identify any issues you'll need to fix, and write a short analysis.
+3. {{analysis_instruction}}
 4. Output a single JSON object (and only JSON) matching this schema:
-    - `analysis`: short string
+    {{analysis_schema}}
     - `correction_needed`: boolean
     - `correction_type`: one of ["reorder", "rewrite", "reorder_first", None] (omit or set null when `correction_needed` is false). "rewrite" includes rewriting html and changing the block type. If you need to do both "rewrite" and "reorder", then perform only the reordering, and output "reorder_first", so we can do the rewriting later.
     - `blocks`: array of objects with `id`, `block_type`, and `html` (only include the blocks that need updates)
@@ -201,8 +206,9 @@ User Prompt
         page_blocks = self.get_selected_blocks(document, page1)
         image = page1.get_image(document, highres=False)
 
+        prompt_template = inject_analysis_prompt(self.page_prompt, self.analysis_style)
         prompt = (
-            self.page_prompt.replace("{{page_json}}", json.dumps(page_blocks))
+            prompt_template.replace("{{page_json}}", json.dumps(page_blocks))
             .replace("{{format_tags}}", json.dumps(ALL_TAGS))
             .replace(
                 "{{user_prompt}}",
