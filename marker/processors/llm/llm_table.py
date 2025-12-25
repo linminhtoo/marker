@@ -1,4 +1,5 @@
-from typing import Annotated, List, Tuple
+import re
+from typing import Annotated, Any, List, cast
 
 from bs4 import BeautifulSoup
 from PIL import Image
@@ -60,7 +61,7 @@ def _int_attr(value: Any, default: int) -> int:
 
 class LLMTableProcessor(BaseLLMComplexBlockProcessor):
     block_types: Annotated[
-        Tuple[BlockTypes],
+        tuple[BlockTypes, ...],
         "The block types to process.",
     ] = (BlockTypes.Table, BlockTypes.TableOfContents)
     max_rows_per_batch: Annotated[
@@ -71,10 +72,11 @@ class LLMTableProcessor(BaseLLMComplexBlockProcessor):
         int,
         "The maximum number of rows in a table to process with the LLM processor.  Beyond this will be skipped.",
     ] = 175
-    table_image_expansion_ratio: Annotated[
+    # NOTE: renamed from `table_image_expansion_ratio`.
+    image_expansion_ratio: Annotated[
         float,
         "The ratio to expand the image by when cropping.",
-    ] = 0
+    ] = 0.01
     rotation_max_wh_ratio: Annotated[
         float,
         "The maximum width/height ratio for table cells for a table to be considered rotated.",
