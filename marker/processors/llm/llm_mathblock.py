@@ -96,9 +96,12 @@ with parameters w, the optimization objective of AT can be formulated as follows
 ```
 
 Output:
-analysis: The inline math is not in LaTeX format and is not surrounded by <math>...</math> tags.
-```html
-Adversarial training <i>(AT)</i> <a href='#page-9-1'>[23]</a>, which aims to minimize the model's risk under the worst-case perturbations, is currently the most effective approach for improving the robustness of deep neural networks. For a given neural network <math>f(x, w)</math> with parameters <math>w</math>, the optimization objective of AT can be formulated as follows:
+```json
+{
+  "analysis": "The inline math is not in LaTeX format and is not surrounded by <math>...</math> tags.",
+  "correction_needed": true,
+  "corrected_html": "Adversarial training <i>(AT)</i> <a href='#page-9-1'>[23]</a>, which aims to minimize the model's risk under the worst-case perturbations, is currently the most effective approach for improving the robustness of deep neural networks. For a given neural network <math>f(x, w)</math> with parameters <math>w</math>, the optimization objective of AT can be formulated as follows:"
+}
 ```
 
 **Input:**
