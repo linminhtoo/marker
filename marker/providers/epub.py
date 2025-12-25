@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 
 from marker.providers.pdf import PdfProvider
 
-css = '''
+css = """
 @page {
     size: A4;
     margin: 2cm;
@@ -41,12 +41,12 @@ td {
     border: 0.75pt solid #000;
     padding: 6pt;
 }
-'''
+"""
 
 
 class EpubProvider(PdfProvider):
     def __init__(self, filepath: str, config=None):
-        temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=f".pdf")
+        temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
         self.temp_pdf_path = temp_pdf.name
         temp_pdf.close()
 
@@ -77,34 +77,34 @@ class EpubProvider(PdfProvider):
         for item in ebook.get_items():
             if item.get_type() == ebooklib.ITEM_IMAGE:
                 img_data = base64.b64encode(item.get_content()).decode("utf-8")
-                img_tags[item.file_name] = f'data:{item.media_type};base64,{img_data}'
+                img_tags[item.file_name] = f"data:{item.media_type};base64,{img_data}"
             elif item.get_type() == ebooklib.ITEM_STYLE:
-                styles.append(item.get_content().decode('utf-8'))
+                styles.append(item.get_content().decode("utf-8"))
 
         for item in ebook.get_items():
             if item.get_type() == ebooklib.ITEM_DOCUMENT:
                 html_content += item.get_content().decode("utf-8")
 
-        soup = BeautifulSoup(html_content, 'html.parser')
-        for img in soup.find_all('img'):
-            src = img.get('src')
+        soup = BeautifulSoup(html_content, "html.parser")
+        for img in soup.find_all("img"):
+            src = img.get("src")
             if src:
-                normalized_src = src.replace('../', '')
+                normalized_src = src.replace("../", "")
                 if normalized_src in img_tags:
-                    img['src'] = img_tags[normalized_src]
+                    img["src"] = img_tags[normalized_src]
 
-        for image in soup.find_all('image'):
-            src = image.get('xlink:href')
+        for image in soup.find_all("image"):
+            src = image.get("xlink:href")
             if src:
-                normalized_src = src.replace('../', '')
+                normalized_src = src.replace("../", "")
                 if normalized_src in img_tags:
-                    image['xlink:href'] = img_tags[normalized_src]
+                    image["xlink:href"] = img_tags[normalized_src]
 
         html_content = str(soup)
-        full_style = ''.join([css])  # + styles)
+        full_style = "".join([css])  # + styles)
 
         # we convert the epub to HTML
         HTML(string=html_content, base_url=filepath).write_pdf(
             self.temp_pdf_path,
-            stylesheets=[CSS(string=full_style), self.get_font_css()]
+            stylesheets=[CSS(string=full_style), self.get_font_css()],
         )
