@@ -26,3 +26,40 @@ def strip_code_fences(text: str) -> str:
 def string_indicates_no_corrections(text: str) -> bool:
     lowered = text.lower()
     return any(phrase in lowered for phrase in NO_CORRECTION_PHRASES)
+
+
+def get_analysis_prompt_parts(style: str | None) -> tuple[str, str]:
+    """
+    Get the instruction and schema parts for the analysis prompt based on the style.
+
+    Parameters
+    ----------
+    style : str | None
+        The style of analysis prompt to generate. 
+        Can be "summary", "auto" or None for default.
+        Defaults to "auto" if None.
+
+    Returns
+    -------
+    tuple[str, str]
+        A tuple containing the instruction and schema parts for the analysis prompt.
+    """
+    normalized = (style or "auto").strip().lower()
+    if normalized == "summary":
+        return (
+            "Write a short analysis.",
+            "- `analysis`: short string",
+        )
+    return (
+        "Write an analysis. Keep it concise unless a longer reasoning process is necessary.",
+        "- `analysis`: string. Keep it short unless a longer reasoning process is necessary.",
+    )
+
+
+def inject_analysis_prompt(prompt: str, style: str | None) -> str:
+    instruction, schema = get_analysis_prompt_parts(style)
+    return (
+        prompt.replace("{{analysis_instruction}}", instruction).replace(
+            "{{analysis_schema}}", schema
+        )
+    )

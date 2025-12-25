@@ -28,6 +28,10 @@ class _NormalizedSectionHeaderResponse:
 
 
 class LLMSectionHeaderProcessor(BaseLLMComplexBlockProcessor):
+    analysis_style: Annotated[
+        str,
+        "How to structure the LLM analysis field: 'summary' or 'auto'.",
+    ] = "summary"
     page_prompt = """You're a text correction expert specializing in accurately analyzing complex PDF documents. You will be given a list of all of the section headers from a document, along with their page number and approximate dimensions.  The headers will be formatted like below, and will be presented in order.
 
 ```json
@@ -55,9 +59,9 @@ Guidelines:
 
 **Instructions:**
 1. Carefully examine the provided section headers and JSON.
-2. Identify any changes you'll need to make, and write a short analysis.
+2. {{analysis_instruction}}
 3. Output a single JSON object (and only JSON) matching this schema:
-    - `analysis`: short string
+    {{analysis_schema}}
     - `correction_needed`: boolean
     - `blocks`: array of objects with `id` and `html` (only include changed headers)
 4. If `correction_needed` is false, set `blocks` to an empty array.
@@ -131,7 +135,10 @@ Section Headers
             item["height"] = item["bbox"][3] - item["bbox"][1]
             del item["block_type"]  # Not needed, since they're all section headers
 
-        prompt = self.page_prompt.replace(
+        prompt_template = inject_analysis_prompt(
+            self.page_prompt, self.analysis_style
+        )
+        prompt = prompt_template.replace(
             "{{section_header_json}}", json.dumps(section_header_json)
         )
         headers = build_marker_trace_headers(
