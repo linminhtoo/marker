@@ -182,14 +182,19 @@ class PageGroup(Group):
         structure_blocks = [self.get_block(block_id) for block_id in self.structure]
         strucure_block_bboxes = [b.polygon.bbox for b in structure_blocks]
 
-        intersection_matrix = matrix_intersection_area(strucure_block_bboxes, strucure_block_bboxes)
-        np.fill_diagonal(intersection_matrix, 0)    # Ignore self-intersections
+        intersection_matrix = matrix_intersection_area(
+            strucure_block_bboxes, strucure_block_bboxes
+        )
+        np.fill_diagonal(intersection_matrix, 0)  # Ignore self-intersections
 
         max_intersection_pct = 0
         for block_idx, block in enumerate(structure_blocks):
             if block.polygon.area == 0:
                 continue
-            max_intersection_pct = max(max_intersection_pct, np.max(intersection_matrix[block_idx]) / block.polygon.area)
+            max_intersection_pct = max(
+                max_intersection_pct,
+                np.max(intersection_matrix[block_idx]) / block.polygon.area,
+            )
 
         return max_intersection_pct
 
