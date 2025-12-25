@@ -135,9 +135,7 @@ Section Headers
             item["height"] = item["bbox"][3] - item["bbox"][1]
             del item["block_type"]  # Not needed, since they're all section headers
 
-        prompt_template = inject_analysis_prompt(
-            self.page_prompt, self.analysis_style
-        )
+        prompt_template = inject_analysis_prompt(self.page_prompt, self.analysis_style)
         prompt = prompt_template.replace(
             "{{section_header_json}}", json.dumps(section_header_json)
         )
