@@ -1,12 +1,16 @@
 import json
-import re
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Annotated
 
 from tqdm import tqdm
 
 from marker.logger import get_logger
 from marker.processors.llm import BaseLLMComplexBlockProcessor
+from marker.processors.llm.llm_utils import (
+    inject_analysis_prompt,
+    strip_code_fences,
+    string_indicates_no_corrections,
+)
 from marker.schema import BlockTypes
 from marker.schema.blocks import Block
 from marker.schema.document import Document
@@ -15,32 +19,6 @@ from marker.telemetry import build_marker_trace_headers
 from pydantic import BaseModel, Field
 
 logger = get_logger()
-
-
-_NO_CORRECTION_PHRASES = (
-    "no_corrections",
-    "no corrections",
-    "no correction required",
-    "no corrections required",
-    "no errors detected",
-    "no errors found",
-    "no changes needed",
-    "no change needed",
-    "looks good",
-)
-
-
-def _strip_code_fences(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", text)
-        text = re.sub(r"\n?```$", "", text)
-    return text.strip()
-
-
-def _string_indicates_no_corrections(text: str) -> bool:
-    lowered = text.lower()
-    return any(phrase in lowered for phrase in _NO_CORRECTION_PHRASES)
 
 
 @dataclass(frozen=True)
@@ -187,8 +165,8 @@ Section Headers
 
         if isinstance(response, str):
             # TODO: is stripping code fences necessary?
-            text = _strip_code_fences(response)
-            if _string_indicates_no_corrections(text):
+            text = strip_code_fences(response)
+            if string_indicates_no_corrections(text):
                 return _NormalizedSectionHeaderResponse(
                     correction_needed=False, blocks=[]
                 )
@@ -208,7 +186,7 @@ Section Headers
         blocks = response.get("blocks", [])
         if isinstance(blocks, str):
             try:
-                blocks = json.loads(_strip_code_fences(blocks))
+                blocks = json.loads(strip_code_fences(blocks))
             except Exception:
                 blocks = []
 
