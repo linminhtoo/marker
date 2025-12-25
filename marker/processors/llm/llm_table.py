@@ -147,18 +147,28 @@ Output:
             return
 
         # Inference by chunk to handle long tables better
-        parsed_cells = []
+        parsed_cells: list[TableCell] = []
         row_shift = 0
         block_image = self.extract_image(document, block)
+        page_highres_image = page.get_image(highres=True)
+        if page_highres_image is None:
+            logger.error("Failed to get high resolution image for page")
+            return
+        page_highres_size = page_highres_image.size
+
+        # Match extract_image expansion so coordinate math aligns with block_image.
         block_rescaled_bbox = block.polygon.rescale(
-            page.polygon.size, page.get_image(highres=True).size
-        ).bbox
+            page.polygon.size, page_highres_size
+        ).expand(self.image_expansion_ratio, self.image_expansion_ratio).bbox
+        chunk_count = (row_count + self.max_rows_per_batch - 1) // self.max_rows_per_batch
         for i in range(0, row_count, self.max_rows_per_batch):
+            chunk_index = i // self.max_rows_per_batch
             batch_row_idxs = row_idxs[i : i + self.max_rows_per_batch]
+            is_last_chunk = i + self.max_rows_per_batch >= row_count
             batch_cells = [cell for cell in children if cell.row_id in batch_row_idxs]
             batch_cell_bboxes = [
                 cell.polygon.rescale(
-                    page.polygon.size, page.get_image(highres=True).size
+                    page.polygon.size, page_highres_size
                 ).bbox
                 for cell in batch_cells
             ]
@@ -169,11 +179,15 @@ Output:
                 max([bbox[2] for bbox in batch_cell_bboxes]) - block_rescaled_bbox[0],
                 max([bbox[3] for bbox in batch_cell_bboxes]) - block_rescaled_bbox[1],
             ]
+            if self.image_expansion_ratio > 0:
+                # Keep horizontal expansion symmetric across chunks.
+                batch_bbox[0] = 0
+                batch_bbox[2] = block_image.size[0]
             if i == 0:
                 # Ensure first image starts from the beginning
                 batch_bbox[0] = 0
                 batch_bbox[1] = 0
-            elif i > row_count - self.max_rows_per_batch + 1:
+            if is_last_chunk:
                 # Ensure final image grabs the entire height and width
                 batch_bbox[2] = block_image.size[0]
                 batch_bbox[3] = block_image.size[1]
