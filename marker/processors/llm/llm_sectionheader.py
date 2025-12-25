@@ -1,4 +1,6 @@
 import json
+import re
+from dataclasses import dataclass
 from typing import List, Tuple
 
 from tqdm import tqdm
@@ -9,9 +11,42 @@ from marker.schema import BlockTypes
 from marker.schema.blocks import Block
 from marker.schema.document import Document
 from marker.schema.groups import PageGroup
-from pydantic import BaseModel
+from marker.telemetry import build_marker_trace_headers
+from pydantic import BaseModel, Field
 
 logger = get_logger()
+
+
+_NO_CORRECTION_PHRASES = (
+    "no_corrections",
+    "no corrections",
+    "no correction required",
+    "no corrections required",
+    "no errors detected",
+    "no errors found",
+    "no changes needed",
+    "no change needed",
+    "looks good",
+)
+
+
+def _strip_code_fences(text: str) -> str:
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+    return text.strip()
+
+
+def _string_indicates_no_corrections(text: str) -> bool:
+    lowered = text.lower()
+    return any(phrase in lowered for phrase in _NO_CORRECTION_PHRASES)
+
+
+@dataclass(frozen=True)
+class _NormalizedSectionHeaderResponse:
+    correction_needed: bool
+    blocks: list
 
 
 class LLMSectionHeaderProcessor(BaseLLMComplexBlockProcessor):
@@ -37,23 +72,17 @@ Your goal is to make sure that the section headers have the correct levels (h1, 
 Guidelines:
 - Edit the blocks to ensure that the section headers have the correct levels.
 - Only edit the h1, h2, h3, h4, h5, and h6 tags.  Do not change any other tags or content in the headers.
-- Only output the headers that changed (if nothing changed, output nothing).
+- Only include the headers that changed in the `blocks` array (if nothing changed, set `correction_needed` to false and `blocks` to []).
 - Every header you output needs to have one and only one level tag (h1, h2, h3, h4, h5, or h6).
 
 **Instructions:**
 1. Carefully examine the provided section headers and JSON.
 2. Identify any changes you'll need to make, and write a short analysis.
-3. Output "no_corrections", or "corrections_needed", depending on whether you need to make changes.
-4. If corrections are needed, output any blocks that need updates.  Only output the block ids and html, like this:
-        ```json
-        [
-            {
-                "id": "/page/0/SectionHeader/1",
-                "html": "<h2>Introduction</h2>"
-            },
-            ...
-        ]
-        ```
+3. Output a single JSON object (and only JSON) matching this schema:
+    - `analysis`: short string
+    - `correction_needed`: boolean
+    - `blocks`: array of objects with `id` and `html` (only include changed headers)
+4. If `correction_needed` is false, set `blocks` to an empty array.
 
 **Example:**
 Input:
@@ -75,18 +104,21 @@ Section Headers
 ]
 ```
 Output:
-Analysis: The first section header is missing the h1 tag, and the second section header is missing the h2 tag.
 ```json
-[
+{
+  "analysis": "The first section header is missing the h1 tag, and the second section header is missing the h2 tag.",
+  "correction_needed": true,
+  "blocks": [
     {
-        "id": "/page/0/SectionHeader/1",
-        "html": "<h1>1 Vector Operations</h1>"
+      "id": "/page/0/SectionHeader/1",
+      "html": "<h1>1 Vector Operations</h1>"
     },
     {
-        "id": "/page/0/SectionHeader/2",
-        "html": "<h2>1.1 Vector Addition</h2>"
+      "id": "/page/0/SectionHeader/2",
+      "html": "<h2>1.1 Vector Addition</h2>"
     }
-]
+  ]
+}
 ```
 
 **Input:**
@@ -111,6 +143,8 @@ Section Headers
     def process_rewriting(
         self, document: Document, section_headers: List[Tuple[Block, dict]]
     ):
+        if self.llm_service is None:
+            raise ValueError("LLM service is not configured")
         section_header_json = [sh[1] for sh in section_headers]
         for item in section_header_json:
             _, _, page_id, block_type, block_id = item["id"].split("/")
@@ -122,25 +156,70 @@ Section Headers
         prompt = self.page_prompt.replace(
             "{{section_header_json}}", json.dumps(section_header_json)
         )
+        headers = build_marker_trace_headers(
+            source_path=document.filepath,
+            processor=self.__class__.__name__,
+            block_id=str(document.pages[0].id),
+            page_id=document.pages[0].page_id,
+            extra={"SectionHeaderCount": len(section_header_json)},
+        )
         response = self.llm_service(
-            prompt, None, document.pages[0], SectionHeaderSchema
+            prompt, None, document.pages[0], SectionHeaderSchema, extra_headers=headers
         )
         logger.debug(f"Got section header reponse from LLM: {response}")
 
-        if not response or "correction_type" not in response:
+        normalized = self._normalize_response(response)
+        if normalized is None:
             logger.warning("LLM did not return a valid response")
             return
 
-        correction_type = response["correction_type"]
-        if correction_type == "no_corrections":
+        if not normalized.correction_needed:
             return
 
-        self.load_blocks(response)
-        self.handle_rewrites(response["blocks"], document)
+        if not normalized.blocks:
+            return
 
-    def load_blocks(self, response):
-        if isinstance(response["blocks"], str):
-            response["blocks"] = json.loads(response["blocks"])
+        self.handle_rewrites(normalized.blocks, document)
+
+    def _normalize_response(self, response) -> _NormalizedSectionHeaderResponse | None:
+        if response is None:
+            return None
+
+        if isinstance(response, str):
+            # TODO: is stripping code fences necessary?
+            text = _strip_code_fences(response)
+            if _string_indicates_no_corrections(text):
+                return _NormalizedSectionHeaderResponse(
+                    correction_needed=False, blocks=[]
+                )
+            try:
+                response = json.loads(text)
+            except Exception:
+                return None
+
+        if isinstance(response, list):
+            return _NormalizedSectionHeaderResponse(
+                correction_needed=len(response) > 0, blocks=response
+            )
+
+        if not isinstance(response, dict):
+            return None
+
+        blocks = response.get("blocks", [])
+        if isinstance(blocks, str):
+            try:
+                blocks = json.loads(_strip_code_fences(blocks))
+            except Exception:
+                blocks = []
+
+        correction_needed = response.get("correction_needed", None)
+        if correction_needed is None:
+            correction_needed = bool(blocks)
+
+        return _NormalizedSectionHeaderResponse(
+            correction_needed=bool(correction_needed),
+            blocks=blocks if isinstance(blocks, list) else [],
+        )
 
     def rewrite_blocks(self, document: Document):
         # Don't show progress if there are no blocks to process
@@ -170,6 +249,6 @@ class BlockSchema(BaseModel):
 
 
 class SectionHeaderSchema(BaseModel):
-    analysis: str
-    correction_type: str
-    blocks: List[BlockSchema]
+    analysis: str = ""
+    correction_needed: bool = False
+    blocks: List[BlockSchema] = Field(default_factory=list)
