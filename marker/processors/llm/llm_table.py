@@ -16,6 +16,48 @@ from marker.telemetry import build_marker_trace_headers
 logger = get_logger()
 
 
+# TODO: centralise these helpers as they are used across a number of LLMProcessors.
+_NO_CORRECTION_PHRASES = (
+    "no_corrections",
+    "no corrections",
+    "no corrections needed",
+    "no correction needed",
+    "no correction required",
+    "no corrections required",
+    "no errors detected",
+    "no errors found",
+    "no changes needed",
+    "no change needed",
+    "looks good",
+)
+
+
+def _strip_code_fences(text: str) -> str:
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+    return text.strip()
+
+
+def _string_indicates_no_corrections(text: str) -> bool:
+    lowered = text.lower()
+    return any(phrase in lowered for phrase in _NO_CORRECTION_PHRASES)
+
+
+def _int_attr(value: Any, default: int) -> int:
+    if value is None:
+        return default
+    if isinstance(value, list):
+        if not value:
+            return default
+        value = value[0]
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class LLMTableProcessor(BaseLLMComplexBlockProcessor):
     block_types: Annotated[
         Tuple[BlockTypes],
@@ -131,8 +173,9 @@ Output:
             return image.rotate(90, expand=True)
 
     def process_rewriting(self, document: Document, page: PageGroup, block: Table):
-        children: List[TableCell] = block.contained_blocks(
-            document, (BlockTypes.TableCell,)
+        children = cast(
+            list[TableCell],
+            block.contained_blocks(document, (BlockTypes.TableCell,)),
         )
         if not children:
             # Happens if table/form processors didn't run
@@ -144,6 +187,7 @@ Output:
         row_idxs = sorted(list(unique_rows))
 
         if row_count > self.max_table_rows:
+            logger.debug(f"Skipping table with {row_count} rows, exceeds max of {self.max_table_rows}")
             return
 
         # Inference by chunk to handle long tables better
@@ -192,11 +236,20 @@ Output:
                 batch_bbox[2] = block_image.size[0]
                 batch_bbox[3] = block_image.size[1]
 
-            batch_image = block_image.crop(batch_bbox)
+            batch_image = block_image.crop(cast(tuple[int, int, int, int], tuple(batch_bbox)))
             block_html = block.format_cells(document, [], None, batch_cells)
             batch_image = self.handle_image_rotation(batch_cells, batch_image)
             batch_parsed_cells = self.rewrite_single_chunk(
-                page, block, block_html, batch_cells, batch_image
+                document,
+                page,
+                block,
+                block_html,
+                batch_cells,
+                batch_image,
+                chunk_index=chunk_index,
+                chunk_count=chunk_count,
+                row_start=batch_row_idxs[0] if batch_row_idxs else None,
+                row_end=batch_row_idxs[-1] if batch_row_idxs else None,
             )
             if batch_parsed_cells is None:
                 return  # Error occurred or no corrections needed
@@ -213,6 +266,7 @@ Output:
 
     def rewrite_single_chunk(
         self,
+        document: Document,
         page: PageGroup,
         block: Block,
         block_html: str,
@@ -338,7 +392,7 @@ Output:
             row_tds = row.find_all(["td", "th"])
             curr_cols = 0
             for cell in row_tds:
-                colspan = int(cell.get("colspan", 1))
+                colspan = _int_attr(cell.get("colspan"), 1)
                 curr_cols += colspan
             if curr_cols > max_cols:
                 max_cols = curr_cols
@@ -357,8 +411,8 @@ Output:
                     break
 
                 cell_text = self.get_cell_text(cell).strip()
-                rowspan = min(int(cell.get("rowspan", 1)), len(rows) - i)
-                colspan = min(int(cell.get("colspan", 1)), max_cols - cur_col)
+                rowspan = min(_int_attr(cell.get("rowspan"), 1), len(rows) - i)
+                colspan = min(_int_attr(cell.get("colspan"), 1), max_cols - cur_col)
                 cell_rows = list(range(i, i + rowspan))
                 cell_cols = list(range(cur_col, cur_col + colspan))
 
