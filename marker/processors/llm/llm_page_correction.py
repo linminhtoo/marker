@@ -31,7 +31,7 @@ ALL_TAGS = FORMAT_TAGS + [tag for tags in BLOCK_MAP.values() for tag in tags]
 
 class LLMPageCorrectionProcessor(BaseLLMComplexBlockProcessor):
     block_correction_prompt: Annotated[
-        str, "The user prompt to guide the block correction process."
+        str | None, "The user prompt to guide the block correction process. If None, will use `default_user_prompt`."
     ] = None
     default_user_prompt = """Your goal is to reformat the blocks to be as correct as possible, without changing the underlying meaning of the text within the blocks.  Mostly focus on reformatting the content.  Ignore minor formatting issues like extra <i> tags."""
     page_prompt = """You're a text correction expert specializing in accurately reproducing text from PDF pages. You will be given a JSON list of blocks on a PDF page, along with the image for that page.  The blocks will be formatted like the example below.  The blocks will be presented in reading order.
@@ -154,7 +154,7 @@ User Prompt
         prompt = (
             self.page_prompt.replace("{{page_json}}", json.dumps(page_blocks))
             .replace("{{format_tags}}", json.dumps(ALL_TAGS))
-            .replace("{{user_prompt}}", self.block_correction_prompt)
+            .replace("{{user_prompt}}", self.block_correction_prompt or self.default_user_prompt)
         )
         response = self.llm_service(prompt, image, page1, PageSchema)
         logger.debug(f"Got reponse from LLM: {response}")
@@ -266,9 +266,6 @@ User Prompt
                 continue
 
     def rewrite_blocks(self, document: Document):
-        if not self.block_correction_prompt:
-            return
-
         # Don't show progress if there are no blocks to process
         total_blocks = len(document.pages)
         if total_blocks == 0:
