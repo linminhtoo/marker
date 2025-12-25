@@ -143,11 +143,14 @@ User Prompt
         selected_blocks = page.structure_blocks(document)
         json_blocks = [
             self.normalize_block_json(block, document, page)
-            for i, block in enumerate(selected_blocks)
+            for block in selected_blocks
         ]
         return json_blocks
 
     def process_rewriting(self, document: Document, page1: PageGroup):
+        if self.llm_service is None:
+            raise ValueError("LLM service is not configured")
+
         page_blocks = self.get_selected_blocks(document, page1)
         image = page1.get_image(document, highres=False)
 
