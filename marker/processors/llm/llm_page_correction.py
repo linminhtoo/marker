@@ -21,6 +21,7 @@ logger = get_logger()
 
 CorrectionType = Literal["reorder", "rewrite", "reorder_first"]
 
+
 def _normalize_correction_type(value: str | None) -> CorrectionType | None:
     if not value:
         return None

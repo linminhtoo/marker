@@ -35,7 +35,7 @@ def get_analysis_prompt_parts(style: str | None) -> tuple[str, str]:
     Parameters
     ----------
     style : str | None
-        The style of analysis prompt to generate. 
+        The style of analysis prompt to generate.
         Can be "summary", "auto" or None for default.
         Defaults to "auto" if None.
 
@@ -58,8 +58,6 @@ def get_analysis_prompt_parts(style: str | None) -> tuple[str, str]:
 
 def inject_analysis_prompt(prompt: str, style: str | None) -> str:
     instruction, schema = get_analysis_prompt_parts(style)
-    return (
-        prompt.replace("{{analysis_instruction}}", instruction).replace(
-            "{{analysis_schema}}", schema
-        )
+    return prompt.replace("{{analysis_instruction}}", instruction).replace(
+        "{{analysis_schema}}", schema
     )

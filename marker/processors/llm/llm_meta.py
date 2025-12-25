@@ -4,7 +4,11 @@ from typing import List
 from marker.logger import get_logger
 from tqdm import tqdm
 
-from marker.processors.llm import BaseLLMSimpleBlockProcessor, BaseLLMProcessor, PromptData
+from marker.processors.llm import (
+    BaseLLMSimpleBlockProcessor,
+    BaseLLMProcessor,
+    PromptData,
+)
 from marker.schema.document import Document
 from marker.services import BaseService
 from marker.telemetry import build_marker_trace_headers
