@@ -56,8 +56,9 @@ class OCRJSONRenderer(BaseRenderer):
         pages = []
         for page in document.pages:
             page_equations = [
-                b for b in page.children if b.block_type == BlockTypes.Equation
-                and not b.removed
+                b
+                for b in page.children
+                if b.block_type == BlockTypes.Equation and not b.removed
             ]
             equation_lines = []
             for equation in page_equations:

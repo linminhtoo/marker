@@ -292,7 +292,7 @@ class MarkdownRenderer(HTMLRenderer):
             sup_symbol="<sup>",
             inline_math_delimiters=self.inline_math_delimiters,
             block_math_delimiters=self.block_math_delimiters,
-            html_tables_in_markdown=self.html_tables_in_markdown
+            html_tables_in_markdown=self.html_tables_in_markdown,
         )
 
     def __call__(self, document: Document) -> MarkdownOutput:
