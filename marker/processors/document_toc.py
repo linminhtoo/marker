@@ -17,6 +17,7 @@ class DocumentTOCProcessor(BaseProcessor):
                 toc.append(
                     {
                         "title": block.raw_text(document).strip(),
+                        # TODO: block doesn't have heading_level typed
                         "heading_level": block.heading_level,
                         "page_id": page.page_id,
                         "polygon": block.polygon.polygon,

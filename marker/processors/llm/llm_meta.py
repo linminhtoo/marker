@@ -1,10 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict, Any
+from typing import List
 
 from marker.logger import get_logger
 from tqdm import tqdm
 
-from marker.processors.llm import BaseLLMSimpleBlockProcessor, BaseLLMProcessor
+from marker.processors.llm import BaseLLMSimpleBlockProcessor, BaseLLMProcessor, PromptData
 from marker.schema.document import Document
 from marker.services import BaseService
 from marker.telemetry import build_marker_trace_headers
@@ -72,7 +72,10 @@ class LLMSimpleBlockMetaProcessor(BaseLLMProcessor):
 
         pbar.close()
 
-    def get_response(self, prompt_data: Dict[str, Any]):
+    def get_response(self, prompt_data: PromptData):
+        if self.llm_service is None:
+            raise ValueError("LLM service is not configured")
+
         additional = prompt_data.get("additional_data") or {}
         headers = build_marker_trace_headers(
             source_path=additional.get("marker_source_path"),
