@@ -41,7 +41,7 @@ class BaseLLMProcessor(BaseProcessor):
 
     max_concurrency: Annotated[
         int,
-        "The maximum number of concurrent requests to make to the Gemini model.",
+        "The maximum number of concurrent requests to make to the Large Language Model.",
     ] = 3
     image_expansion_ratio: Annotated[
         float,
