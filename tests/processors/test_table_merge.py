@@ -8,12 +8,11 @@ from marker.schema import BlockTypes
 
 
 @pytest.mark.filename("table_ex2.pdf")
-def test_llm_table_processor_nomerge(pdf_document, table_rec_model, recognition_model, detection_model, mocker):
+def test_llm_table_processor_nomerge(
+    pdf_document, table_rec_model, recognition_model, detection_model, mocker
+):
     mock_cls = Mock()
-    mock_cls.return_value = {
-        "merge": "true",
-        "direction": "right"
-    }
+    mock_cls.return_value = {"merge": "true", "direction": "right"}
 
     cell_processor = TableProcessor(recognition_model, table_rec_model, detection_model)
     cell_processor(pdf_document)
@@ -21,7 +20,9 @@ def test_llm_table_processor_nomerge(pdf_document, table_rec_model, recognition_
     tables = pdf_document.contained_blocks((BlockTypes.Table,))
     assert len(tables) == 3
 
-    processor = LLMTableMergeProcessor(mock_cls, {"use_llm": True, "gemini_api_key": "test"})
+    processor = LLMTableMergeProcessor(
+        mock_cls, {"use_llm": True, "gemini_api_key": "test"}
+    )
     processor(pdf_document)
 
     tables = pdf_document.contained_blocks((BlockTypes.Table,))

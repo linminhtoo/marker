@@ -39,7 +39,9 @@ def test_llm_form_processor_no_cells(pdf_document, llm_service):
 
 @pytest.mark.filename("form_1040.pdf")
 @pytest.mark.config({"page_range": [0]})
-def test_llm_form_processor(pdf_document, table_rec_model, recognition_model, detection_model):
+def test_llm_form_processor(
+    pdf_document, table_rec_model, recognition_model, detection_model
+):
     corrected_html = "<em>This is corrected markdown.</em>\n" * 100
     corrected_html = "<p>" + corrected_html.strip() + "</p>\n"
 
@@ -58,10 +60,11 @@ def test_llm_form_processor(pdf_document, table_rec_model, recognition_model, de
     assert forms[0].html == corrected_html.strip()
 
 
-
 @pytest.mark.filename("table_ex2.pdf")
 @pytest.mark.config({"page_range": [0]})
-def test_llm_table_processor(pdf_document, table_rec_model, recognition_model, detection_model):
+def test_llm_table_processor(
+    pdf_document, table_rec_model, recognition_model, detection_model
+):
     corrected_html = """
 <table>
     <tr>
@@ -111,8 +114,11 @@ def test_llm_caption_processor_disabled(pdf_document):
     processor = LLMSimpleBlockMetaProcessor(processor_lst, mock_cls, config)
     processor(pdf_document)
 
-    contained_pictures = pdf_document.contained_blocks((BlockTypes.Picture, BlockTypes.Figure))
+    contained_pictures = pdf_document.contained_blocks(
+        (BlockTypes.Picture, BlockTypes.Figure)
+    )
     assert all(picture.description is None for picture in contained_pictures)
+
 
 @pytest.mark.filename("A17_FlightPlan.pdf")
 @pytest.mark.config({"page_range": [0]})
@@ -126,7 +132,9 @@ def test_llm_caption_processor(pdf_document):
     processor = LLMSimpleBlockMetaProcessor(processor_lst, mock_cls, config)
     processor(pdf_document)
 
-    contained_pictures = pdf_document.contained_blocks((BlockTypes.Picture, BlockTypes.Figure))
+    contained_pictures = pdf_document.contained_blocks(
+        (BlockTypes.Picture, BlockTypes.Figure)
+    )
     assert all(picture.description == description for picture in contained_pictures)
 
     # Ensure the rendering includes the description
@@ -162,19 +170,33 @@ def test_llm_complex_region_processor(pdf_document):
 
     assert md in rendered_md
 
+
 @pytest.mark.filename("adversarial.pdf")
 @pytest.mark.config({"page_range": [0]})
 def test_multi_llm_processors(pdf_document):
-    description = "<math>This is an image description.  And here is a lot of writing about it.</math>" * 10
+    description = (
+        "<math>This is an image description.  And here is a lot of writing about it.</math>"
+        * 10
+    )
     mock_cls = Mock()
-    mock_cls.return_value = {"image_description": description, "corrected_equation": description}
+    mock_cls.return_value = {
+        "image_description": description,
+        "corrected_equation": description,
+    }
 
-    config = {"use_llm": True, "gemini_api_key": "test", "extract_images": False, "min_equation_height": .001}
+    config = {
+        "use_llm": True,
+        "gemini_api_key": "test",
+        "extract_images": False,
+        "min_equation_height": 0.001,
+    }
     processor_lst = [LLMImageDescriptionProcessor(config), LLMEquationProcessor(config)]
     processor = LLMSimpleBlockMetaProcessor(processor_lst, mock_cls, config)
     processor(pdf_document)
 
-    contained_pictures = pdf_document.contained_blocks((BlockTypes.Picture, BlockTypes.Figure))
+    contained_pictures = pdf_document.contained_blocks(
+        (BlockTypes.Picture, BlockTypes.Figure)
+    )
     assert all(picture.description == description for picture in contained_pictures)
 
     contained_equations = pdf_document.contained_blocks((BlockTypes.Equation,))

@@ -36,6 +36,7 @@ def test_html_provider(doc_provider):
     spans = page_lines[0].spans
     assert spans[0].text == "Jump to content"
 
+
 @pytest.mark.config({"page_range": [0]})
 @pytest.mark.filename("gatsby.docx")
 def test_docx_provider(doc_provider):

@@ -8,14 +8,13 @@ from benchmarks.overall.scorers import BaseScorer
 
 
 class HeuristicScorer(BaseScorer):
-    def __call__(self, sample, gt_markdown: List[str], method_markdown: str) -> BlockScores:
+    def __call__(
+        self, sample, gt_markdown: List[str], method_markdown: str
+    ) -> BlockScores:
         if not method_markdown:
             return {
                 "score": 0,
-                "specific_scores": {
-                    "order": 0,
-                    "by_block": [0] * len(gt_markdown)
-                }
+                "specific_scores": {"order": 0, "by_block": [0] * len(gt_markdown)},
             }
 
         # Standardize inputs
@@ -40,10 +39,7 @@ class HeuristicScorer(BaseScorer):
         overall_score = overall_score * 0.8 + order_score * 0.2
         return {
             "score": overall_score,
-            "specific_scores": {
-                "order": order_score,
-                "by_block": scores
-            },
+            "specific_scores": {"order": order_score, "by_block": scores},
         }
 
     @staticmethod
@@ -60,26 +56,30 @@ class HeuristicScorer(BaseScorer):
                 correct_sign = correct_order[i] - correct_order[j]
                 actual_sign = actual_order[i] - actual_order[j]
 
-                if (correct_sign > 0 and actual_sign > 0) or (correct_sign < 0 and actual_sign < 0):
+                if (correct_sign > 0 and actual_sign > 0) or (
+                    correct_sign < 0 and actual_sign < 0
+                ):
                     concordant += 1
-                elif (correct_sign < 0 and actual_sign > 0) or (correct_sign > 0 and actual_sign < 0):
+                elif (correct_sign < 0 and actual_sign > 0) or (
+                    correct_sign > 0 and actual_sign < 0
+                ):
                     discordant += 1
 
         total_pairs = (n * (n - 1)) // 2
         tau = (concordant - discordant) / total_pairs
-        tau = (tau + 1) / 2 # 0-1 scale
-        return tau * 100 # 0-100 scale
+        tau = (tau + 1) / 2  # 0-1 scale
+        return tau * 100  # 0-100 scale
 
     @staticmethod
     def find_fuzzy_alignments(
-            main_string: str,
-            substrings: List[str],
-            threshold: int = 70
+        main_string: str, substrings: List[str], threshold: int = 70
     ) -> List[dict]:
         alignments = []
 
         for idx, substr in enumerate(substrings):
-            result = fuzz.partial_ratio_alignment(substr, main_string, score_cutoff=threshold)
+            result = fuzz.partial_ratio_alignment(
+                substr, main_string, score_cutoff=threshold
+            )
 
             score = 0
             dest_start = 0
@@ -89,15 +89,16 @@ class HeuristicScorer(BaseScorer):
                 dest_start = result.dest_start
                 dest_end = result.dest_end
 
-            alignments.append({
-                "string": substr,
-                "start": dest_start,
-                "end": dest_end,
-                "score": score,
-                "idx": idx
-            })
+            alignments.append(
+                {
+                    "string": substr,
+                    "start": dest_start,
+                    "end": dest_end,
+                    "score": score,
+                    "idx": idx,
+                }
+            )
         return alignments
-
 
     @staticmethod
     def clean_input(md: str):

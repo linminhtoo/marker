@@ -4,7 +4,6 @@ import tempfile
 import time
 from io import BytesIO
 
-import torch
 from PIL import Image
 
 from benchmarks.overall.methods import BaseMethod, BenchmarkResult
@@ -18,7 +17,9 @@ def convert_single_page(filename: str, model, processor, device):
     image_base64 = render_pdf_to_base64png(filename, 1, target_longest_image_dim=1024)
 
     # Build the prompt, using document metadata
-    anchor_text = get_anchor_text(filename, 1, pdf_engine="pdfreport", target_length=4000)
+    anchor_text = get_anchor_text(
+        filename, 1, pdf_engine="pdfreport", target_length=4000
+    )
     prompt = build_finetuning_prompt(anchor_text)
 
     # Build the full prompt
@@ -27,13 +28,18 @@ def convert_single_page(filename: str, model, processor, device):
             "role": "user",
             "content": [
                 {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{image_base64}"},
+                },
             ],
         }
     ]
 
     # Apply the chat template and processor
-    text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    text = processor.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
     main_image = Image.open(BytesIO(base64.b64decode(image_base64)))
 
     inputs = processor(
@@ -82,10 +88,12 @@ class OlmOCRMethod(BaseMethod):
         with tempfile.NamedTemporaryFile(suffix=".pdf", mode="wb") as f:
             f.write(pdf_bytes)
             start = time.time()
-            result = convert_single_page(f.name, self.olmocr_model["model"], self.olmocr_model["processor"], self.olmocr_model["model"].device)
+            result = convert_single_page(
+                f.name,
+                self.olmocr_model["model"],
+                self.olmocr_model["processor"],
+                self.olmocr_model["model"].device,
+            )
             total = time.time() - start
 
-        return {
-            "markdown": result,
-            "time": total
-        }
+        return {"markdown": result, "time": total}

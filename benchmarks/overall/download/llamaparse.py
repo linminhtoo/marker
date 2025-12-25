@@ -24,39 +24,36 @@ class LlamaParseDownloader(Downloader):
         }
 
 
-def upload_and_parse_file(api_key: str, fname: str, buff, max_retries: int = 180, delay: int = 1):
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Accept": "application/json"
-    }
+def upload_and_parse_file(
+    api_key: str, fname: str, buff, max_retries: int = 180, delay: int = 1
+):
+    headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
 
     # Upload file
-    files = {
-        'file': (fname, buff, 'application/pdf')
-    }
+    files = {"file": (fname, buff, "application/pdf")}
     response = requests.post(
-        'https://api.cloud.llamaindex.ai/api/v1/parsing/upload',
+        "https://api.cloud.llamaindex.ai/api/v1/parsing/upload",
         headers=headers,
-        files=files
+        files=files,
     )
     response.raise_for_status()
-    job_id = response.json()['id']
+    job_id = response.json()["id"]
 
     # Poll for completion
     for _ in range(max_retries):
         status_response = requests.get(
-            f'https://api.cloud.llamaindex.ai/api/v1/parsing/job/{job_id}',
-            headers=headers
+            f"https://api.cloud.llamaindex.ai/api/v1/parsing/job/{job_id}",
+            headers=headers,
         )
         status_response.raise_for_status()
-        if status_response.json()['status'] == 'SUCCESS':
+        if status_response.json()["status"] == "SUCCESS":
             # Get results
             result_response = requests.get(
-                f'https://api.cloud.llamaindex.ai/api/v1/parsing/job/{job_id}/result/markdown',
-                headers=headers
+                f"https://api.cloud.llamaindex.ai/api/v1/parsing/job/{job_id}/result/markdown",
+                headers=headers,
             )
             result_response.raise_for_status()
-            return result_response.json()['markdown']
+            return result_response.json()["markdown"]
 
         time.sleep(delay)
 
