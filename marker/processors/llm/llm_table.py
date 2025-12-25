@@ -60,6 +60,10 @@ class LLMTableProcessor(BaseLLMComplexBlockProcessor):
         int,
         "The maximum number of iterations to attempt rewriting a table.",
     ] = 2
+    analysis_style: Annotated[
+        str,
+        "How to structure the LLM analysis field: 'summary' or 'auto'.",
+    ] = "summary"
     table_rewriting_prompt: Annotated[
         str,
         "The prompt to use for rewriting text.",
@@ -81,16 +85,17 @@ Some guidelines:
 1. Carefully examine the provided text block image.
 2. Analyze the html representation of the table.
 3. Write a comparison of the image and the html representation, paying special attention to the column headers matching the correct column values.
-4. Output a single JSON object (and only JSON) matching this schema:
+4. {{analysis_instruction}}
+5. Output a single JSON object (and only JSON) matching this schema:
     - `comparison`: short string
-    - `analysis`: string. use as many words as you need and take as much time as you need to fully think, reason and analyse the image and the given html representation.
+    {{analysis_schema}}
     - `correction_needed`: boolean
     - `corrected_html`: corrected full table HTML (empty string when `correction_needed` is false)
     - `score`: integer 1-5 (use 5 when `correction_needed` is false), indicating your confidence in your analysis, and the quality of the corrected HTML representation.
-5. If the html representation is completely correct, set `correction_needed` to false and `corrected_html` to "".
-6. If you cannot read the image properly or fully, do your best to make as many corrections as you can, set `score` to 1 and `correction_needed` to True.
+6. If the html representation is completely correct, set `correction_needed` to false and `corrected_html` to "".
+7. If you cannot read the image properly or fully, do your best to make as many corrections as you can, set `score` to 1 and `correction_needed` to True.
     We will send your corrected HTML + image again for another round of correction.
-7. If the html representation has errors, set `correction_needed` to true and provide the corrected full table HTML in `corrected_html`.
+8. If the html representation has errors, set `correction_needed` to true and provide the corrected full table HTML in `corrected_html`.
 **Example:**
 Input:
 ```html
@@ -265,7 +270,10 @@ Output:
         if self.llm_service is None:
             raise ValueError("LLM service is not initialized")
 
-        prompt = self.table_rewriting_prompt.replace("{block_html}", block_html)
+        prompt_template = inject_analysis_prompt(
+            self.table_rewriting_prompt, self.analysis_style
+        )
+        prompt = prompt_template.replace("{block_html}", block_html)
 
         headers = build_marker_trace_headers(
             source_path=document.filepath,
