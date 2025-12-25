@@ -1,4 +1,3 @@
-import re
 from typing import Annotated, Any, List, cast
 
 from bs4 import BeautifulSoup
@@ -7,6 +6,11 @@ from marker.logger import get_logger
 from pydantic import BaseModel
 
 from marker.processors.llm import BaseLLMComplexBlockProcessor
+from marker.processors.llm.llm_utils import (
+    inject_analysis_prompt,
+    strip_code_fences,
+    string_indicates_no_corrections,
+)
 from marker.schema import BlockTypes
 from marker.schema.blocks import Block, TableCell, Table
 from marker.schema.document import Document
@@ -15,35 +19,6 @@ from marker.schema.polygon import PolygonBox
 from marker.telemetry import build_marker_trace_headers
 
 logger = get_logger()
-
-
-# TODO: centralise these helpers as they are used across a number of LLMProcessors.
-_NO_CORRECTION_PHRASES = (
-    "no_corrections",
-    "no corrections",
-    "no corrections needed",
-    "no correction needed",
-    "no correction required",
-    "no corrections required",
-    "no errors detected",
-    "no errors found",
-    "no changes needed",
-    "no change needed",
-    "looks good",
-)
-
-
-def _strip_code_fences(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", text)
-        text = re.sub(r"\n?```$", "", text)
-    return text.strip()
-
-
-def _string_indicates_no_corrections(text: str) -> bool:
-    lowered = text.lower()
-    return any(phrase in lowered for phrase in _NO_CORRECTION_PHRASES)
 
 
 def _int_attr(value: Any, default: int) -> int:
@@ -308,7 +283,7 @@ Output:
         corrected_html = response.get("corrected_html", "") or ""
 
         if correction_needed is None:
-            correction_needed = bool(corrected_html) and not _string_indicates_no_corrections(
+            correction_needed = bool(corrected_html) and not string_indicates_no_corrections(
                 corrected_html
             )
 
@@ -316,7 +291,7 @@ Output:
             return
 
         # Legacy fallback if LLM did not conform to JSON Schema instructions
-        if _string_indicates_no_corrections(corrected_html):
+        if string_indicates_no_corrections(corrected_html):
             return
 
         if not corrected_html:
@@ -324,10 +299,10 @@ Output:
             return
 
         # The original table is okay
-        if _string_indicates_no_corrections(corrected_html):
+        if string_indicates_no_corrections(corrected_html):
             return
 
-        corrected_html = _strip_code_fences(corrected_html)
+        corrected_html = strip_code_fences(corrected_html)
 
         # Re-iterate if low score
         total_iterations += 1

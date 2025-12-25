@@ -1,11 +1,14 @@
 import json
-import re
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Annotated, Literal, cast
 
 from marker.logger import get_logger
 from marker.processors.llm import BaseLLMComplexBlockProcessor
+from marker.processors.llm.llm_utils import (
+    strip_code_fences,
+    string_indicates_no_corrections,
+)
 from marker.schema import BlockTypes
 from marker.schema.blocks import BlockId
 from marker.schema.document import Document
@@ -17,32 +20,6 @@ from tqdm import tqdm
 logger = get_logger()
 
 CorrectionType = Literal["reorder", "rewrite", "reorder_first"]
-
-_NO_CORRECTION_PHRASES = (
-    "no_corrections",
-    "no corrections",
-    "no correction required",
-    "no corrections required",
-    "no errors detected",
-    "no errors found",
-    "no changes needed",
-    "no change needed",
-    "looks good",
-)
-
-
-def _strip_code_fences(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", text)
-        text = re.sub(r"\n?```$", "", text)
-    return text.strip()
-
-
-def _string_indicates_no_corrections(text: str) -> bool:
-    lowered = text.lower()
-    return any(phrase in lowered for phrase in _NO_CORRECTION_PHRASES)
-
 
 def _normalize_correction_type(value: str | None) -> CorrectionType | None:
     if not value:
@@ -277,8 +254,8 @@ User Prompt
             return None
 
         if isinstance(response, str):
-            text = _strip_code_fences(response)
-            if _string_indicates_no_corrections(text):
+            text = strip_code_fences(response)
+            if string_indicates_no_corrections(text):
                 return _NormalizedPageCorrectionResponse(
                     correction_needed=False, correction_type=None, blocks=[]
                 )
@@ -301,7 +278,7 @@ User Prompt
         blocks = response.get("blocks", [])
         if isinstance(blocks, str):
             try:
-                blocks = json.loads(_strip_code_fences(blocks))
+                blocks = json.loads(strip_code_fences(blocks))
             except Exception:
                 blocks = []
 
@@ -311,7 +288,7 @@ User Prompt
         )
         if correction_needed is None:
             raw_type = str(response.get("correction_type", "") or "")
-            if _string_indicates_no_corrections(raw_type):
+            if string_indicates_no_corrections(raw_type):
                 correction_needed = False
             else:
                 correction_needed = bool(correction_type) or bool(blocks)
