@@ -51,8 +51,10 @@ def get_analysis_prompt_parts(style: str | None) -> tuple[str, str]:
             "- `analysis`: short string",
         )
     return (
-        "Write an analysis. Keep it concise unless a longer reasoning process is necessary.",
-        "- `analysis`: string. Keep it short unless a longer reasoning process is necessary.",
+        "Write an analysis. Keep it concise unless a longer reasoning process is necessary. "
+        "If the task is difficult, you must enter a detailed reasoning process and think step by step.",
+        "- `analysis`: string. Keep it concise unless a longer reasoning process is necessary. "
+        "If the task is difficult, you must enter a detailed reasoning process and think step by step.",
     )
 
 
