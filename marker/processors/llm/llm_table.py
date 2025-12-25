@@ -11,6 +11,7 @@ from marker.schema.blocks import Block, TableCell, Table
 from marker.schema.document import Document
 from marker.schema.groups.page import PageGroup
 from marker.schema.polygon import PolygonBox
+from marker.telemetry import build_marker_trace_headers
 
 logger = get_logger()
 
@@ -43,7 +44,7 @@ class LLMTableProcessor(BaseLLMComplexBlockProcessor):
     table_rewriting_prompt: Annotated[
         str,
         "The prompt to use for rewriting text.",
-        "Default is a string containing the Gemini rewriting prompt.",
+        "Default is a string containing the LLM rewriting prompt.",
     ] = """You are a text correction expert specializing in accurately reproducing text from images.
 You will receive an image and an html representation of the table in the image.
 Your task is to correct any errors in the html representation.  The html representation should be as faithful to the original table image as possible.  The table image may be rotated, but ensure the html representation is not rotated.  Make sure to include HTML for the full table, including the opening and closing table tags.
@@ -61,8 +62,16 @@ Some guidelines:
 1. Carefully examine the provided text block image.
 2. Analyze the html representation of the table.
 3. Write a comparison of the image and the html representation, paying special attention to the column headers matching the correct column values.
-4. If the html representation is completely correct, or you cannot read the image properly, then write "No corrections needed."  If the html representation has errors, generate the corrected html representation.  Output only either the corrected html representation or "No corrections needed."
-5. If you made corrections, analyze your corrections against the original image, and provide a score from 1-5, indicating how well the corrected html matches the image, with 5 being perfect.
+4. Output a single JSON object (and only JSON) matching this schema:
+    - `comparison`: short string
+    - `analysis`: string. use as many words as you need and take as much time as you need to fully think, reason and analyse the image and the given html representation.
+    - `correction_needed`: boolean
+    - `corrected_html`: corrected full table HTML (empty string when `correction_needed` is false)
+    - `score`: integer 1-5 (use 5 when `correction_needed` is false), indicating your confidence in your analysis, and the quality of the corrected HTML representation.
+5. If the html representation is completely correct, set `correction_needed` to false and `corrected_html` to "".
+6. If you cannot read the image properly or fully, do your best to make as many corrections as you can, set `score` to 1 and `correction_needed` to True.
+    We will send your corrected HTML + image again for another round of correction.
+7. If the html representation has errors, set `correction_needed` to true and provide the corrected full table HTML in `corrected_html`.
 **Example:**
 Input:
 ```html
@@ -79,12 +88,15 @@ Input:
 </table>
 ```
 Output:
-comparison: The image shows a table with 2 rows and 3 columns.  The text and formatting of the html table matches the image.  The column headers match the correct column values.
-```html
-No corrections needed.
+```json
+{
+  "comparison": "The image shows a table with 2 rows and 3 columns. The text and formatting of the html table matches the image. The column headers match the correct column values.",
+  "correction_needed": false,
+  "corrected_html": "",
+  "analysis": "I did not make any corrections, as the html representation was already accurate.",
+  "score": 5
+}
 ```
-analysis: I did not make any corrections, as the html representation was already accurate.
-score: 5
 **Input:**
 ```html
 {block_html}
@@ -193,22 +205,59 @@ score: 5
         children: List[TableCell],
         image: Image.Image,
         total_iterations: int = 0,
+        *,
+        chunk_index: int = 0,
+        chunk_count: int = 1,
+        row_start: int | None = None,
+        row_end: int | None = None,
     ):
+        if self.llm_service is None:
+            raise ValueError("LLM service is not initialized")
+
         prompt = self.table_rewriting_prompt.replace("{block_html}", block_html)
 
-        response = self.llm_service(prompt, image, block, TableSchema)
+        headers = build_marker_trace_headers(
+            source_path=document.filepath,
+            processor=self.__class__.__name__,
+            block_id=str(block.id),
+            page_id=page.page_id,
+            extra={
+                "TableChunk": f"{chunk_index + 1}/{chunk_count}",
+                "RowStart": row_start,
+                "RowEnd": row_end,
+                "Iteration": total_iterations,
+            },
+        )
+        response = self.llm_service(prompt, image, block, TableSchema, extra_headers=headers)
 
-        if not response or "corrected_html" not in response:
+        if not response:
             block.update_metadata(llm_error_count=1)
             return
 
-        corrected_html = response["corrected_html"]
+        correction_needed = response.get("correction_needed", None)
+        corrected_html = response.get("corrected_html", "") or ""
 
-        # The original table is okay
-        if "no corrections needed" in corrected_html.lower():
+        if correction_needed is None:
+            correction_needed = bool(corrected_html) and not _string_indicates_no_corrections(
+                corrected_html
+            )
+
+        if correction_needed is False:
             return
 
-        corrected_html = corrected_html.strip().lstrip("```html").rstrip("```").strip()
+        # Legacy fallback if LLM did not conform to JSON Schema instructions
+        if _string_indicates_no_corrections(corrected_html):
+            return
+
+        if not corrected_html:
+            block.update_metadata(llm_error_count=1)
+            return
+
+        # The original table is okay
+        if _string_indicates_no_corrections(corrected_html):
+            return
+
+        corrected_html = _strip_code_fences(corrected_html)
 
         # Re-iterate if low score
         total_iterations += 1
@@ -217,11 +266,22 @@ score: 5
         logger.debug(f"Got table rewriting score {score} with analysis: {analysis}")
         if total_iterations < self.max_table_iterations and score < 4:
             logger.info(
-                f"Table rewriting low score {score}, on iteration {total_iterations}"
+                f"Table rewriting low score {score}, on iteration {total_iterations} "
+                "Trying again."
             )
             block_html = corrected_html
             return self.rewrite_single_chunk(
-                page, block, block_html, children, image, total_iterations
+                document,
+                page,
+                block,
+                block_html,
+                children,
+                image,
+                total_iterations,
+                chunk_index=chunk_index,
+                chunk_count=chunk_count,
+                row_start=row_start,
+                row_end=row_end,
             )
 
         parsed_cells = self.parse_html_table(corrected_html, block, page)
@@ -321,7 +381,8 @@ score: 5
 
 
 class TableSchema(BaseModel):
-    comparison: str
-    corrected_html: str
-    analysis: str
-    score: int
+    comparison: str = ""
+    analysis: str = ""
+    correction_needed: bool = False
+    corrected_html: str = ""
+    score: int = 5
