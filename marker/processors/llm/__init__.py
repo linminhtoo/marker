@@ -158,7 +158,7 @@ class BaseLLMComplexBlockProcessor(BaseLLMProcessor):
         pbar = tqdm(
             total=total_blocks,
             desc=f"{self.__class__.__name__} running",
-            disable=self.disable_tqdm
+            disable=self.disable_tqdm,
         )
         with ThreadPoolExecutor(max_workers=self.max_concurrency) as executor:
             for future in as_completed(

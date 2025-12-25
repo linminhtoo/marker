@@ -14,21 +14,22 @@ from marker.settings import settings
 OPENING_TAG_REGEX = re.compile(r"<((?:math|i|b))(?:\s+[^>]*)?>")
 CLOSING_TAG_REGEX = re.compile(r"</((?:math|i|b))>")
 TAG_MAPPING = {
-    'i': 'italic',
-    'b': 'bold',
-    'math': 'math',
-    'mark': 'highlight',
-    'sub': 'subscript',
-    'sup': 'superscript',
-    'small': 'small',
-    'u': 'underline',
-    'code': 'code'
+    "i": "italic",
+    "b": "bold",
+    "math": "math",
+    "mark": "highlight",
+    "sub": "subscript",
+    "sup": "superscript",
+    "small": "small",
+    "u": "underline",
+    "code": "code",
 }
+
 
 def strings_to_classes(items: List[str]) -> List[type]:
     classes = []
     for item in items:
-        module_name, class_name = item.rsplit('.', 1)
+        module_name, class_name = item.rsplit(".", 1)
         module = import_module(module_name)
         classes.append(getattr(module, class_name))
     return classes
@@ -52,7 +53,9 @@ def verify_config_keys(obj):
             if value is None:
                 none_vals += f"{attr_name}, "
 
-    assert len(none_vals) == 0, f"In order to use {obj.__class__.__name__}, you must set the configuration values `{none_vals}`."
+    assert len(none_vals) == 0, (
+        f"In order to use {obj.__class__.__name__}, you must set the configuration values `{none_vals}`."
+    )
 
 
 def assign_config(cls, config: BaseModel | dict | None):
@@ -92,7 +95,9 @@ def parse_range_str(range_str: str) -> List[int]:
     return page_lst
 
 
-def matrix_intersection_area(boxes1: List[List[float]], boxes2: List[List[float]]) -> np.ndarray:
+def matrix_intersection_area(
+    boxes1: List[List[float]], boxes2: List[List[float]]
+) -> np.ndarray:
     if len(boxes1) == 0 or len(boxes2) == 0:
         return np.zeros((len(boxes1), len(boxes2)))
 
@@ -122,7 +127,7 @@ def matrix_distance(boxes1: List[List[float]], boxes2: List[List[float]]) -> np.
     boxes1 = np.array(boxes1)  # Shape: (N, 4)
     boxes2 = np.array(boxes2)  # Shape: (M, 4)
 
-    boxes1_centers = (boxes1[:, :2] + boxes1[:, 2:]) / 2 # Shape: (M, 2)
+    boxes1_centers = (boxes1[:, :2] + boxes1[:, 2:]) / 2  # Shape: (M, 2)
     boxes2_centers = (boxes2[:, :2] + boxes2[:, 2:]) / 2  # Shape: (M, 2)
 
     boxes1_centers = boxes1_centers[:, np.newaxis, :]  # Shape: (N, 1, 2)
@@ -150,19 +155,24 @@ def sort_text_lines(lines: List[PolygonBox], tolerance=1.25):
 
     return sorted_lines
 
+
 def download_font():
     if not os.path.exists(settings.FONT_PATH):
         os.makedirs(os.path.dirname(settings.FONT_PATH), exist_ok=True)
         font_dl_path = f"{settings.ARTIFACT_URL}/{settings.FONT_NAME}"
-        with requests.get(font_dl_path, stream=True) as r, open(settings.FONT_PATH, 'wb') as f:
+        with (
+            requests.get(font_dl_path, stream=True) as r,
+            open(settings.FONT_PATH, "wb") as f,
+        ):
             r.raise_for_status()
             for chunk in r.iter_content(chunk_size=8192):
                 f.write(chunk)
 
+
 def get_opening_tag_type(tag):
     """
     Determines if a tag is an opening tag and extracts the tag type.
-    
+
     Args:
         tag (str): The tag string to analyze.
 
@@ -170,18 +180,19 @@ def get_opening_tag_type(tag):
         tuple: (is_opening_tag (bool), tag_type (str or None))
     """
     match = OPENING_TAG_REGEX.match(tag)
-    
+
     if match:
         tag_type = match.group(1)
         if tag_type in TAG_MAPPING:
             return True, TAG_MAPPING[tag_type]
-    
+
     return False, None
+
 
 def get_closing_tag_type(tag):
     """
     Determines if a tag is an opening tag and extracts the tag type.
-    
+
     Args:
         tag (str): The tag string to analyze.
 
@@ -189,41 +200,45 @@ def get_closing_tag_type(tag):
         tuple: (is_opening_tag (bool), tag_type (str or None))
     """
     match = CLOSING_TAG_REGEX.match(tag)
-    
+
     if match:
         tag_type = match.group(1)
         if tag_type in TAG_MAPPING:
             return True, TAG_MAPPING[tag_type]
-    
+
     return False, None
+
 
 # Modification of unwrap_math from surya.recognition
 MATH_SYMBOLS = ["^", "_", "\\", "{", "}"]
-MATH_TAG_PATTERN = re.compile(r'<math\b[^>]*>.*?</math>', re.DOTALL)
+MATH_TAG_PATTERN = re.compile(r"<math\b[^>]*>.*?</math>", re.DOTALL)
 LATEX_ESCAPES = {
-    r'\%': '%',
-    r'\$': '$',
-    r'\_': '_',
-    r'\&': '&',
-    r'\#': '#',
-    r'\‰': '‰',
+    r"\%": "%",
+    r"\$": "$",
+    r"\_": "_",
+    r"\&": "&",
+    r"\#": "#",
+    r"\‰": "‰",
 }
+
+
 def normalize_latex_escapes(s: str) -> str:
     for k, v in LATEX_ESCAPES.items():
         s = s.replace(k, v)
     return s
 
+
 def unwrap_math(text: str, math_symbols: List[str] = MATH_SYMBOLS) -> str:
     """Unwrap a single <math>...</math> block if it's not really math."""
     if MATH_TAG_PATTERN.match(text):
         # Remove tags
-        inner = re.sub(r'^\s*<math\b[^>]*>|</math>\s*$', '', text, flags=re.DOTALL)
+        inner = re.sub(r"^\s*<math\b[^>]*>|</math>\s*$", "", text, flags=re.DOTALL)
 
         # Strip a single leading/trailing \\ plus surrounding whitespace
-        inner_stripped = re.sub(r'^\s*\\\\\s*|\s*\\\\\s*$', '', inner)
+        inner_stripped = re.sub(r"^\s*\\\\\s*|\s*\\\\\s*$", "", inner)
 
         # Unwrap \text{...}
-        unwrapped = re.sub(r'\\text[a-zA-Z]*\s*\{(.*?)\}', r'\1', inner_stripped)
+        unwrapped = re.sub(r"\\text[a-zA-Z]*\s*\{(.*?)\}", r"\1", inner_stripped)
 
         # Normalize escapes
         normalized = normalize_latex_escapes(unwrapped)

@@ -189,7 +189,9 @@ Output:
         row_idxs = sorted(list(unique_rows))
 
         if row_count > self.max_table_rows:
-            logger.debug(f"Skipping table with {row_count} rows, exceeds max of {self.max_table_rows}")
+            logger.debug(
+                f"Skipping table with {row_count} rows, exceeds max of {self.max_table_rows}"
+            )
             return
 
         # Inference by chunk to handle long tables better
@@ -203,19 +205,21 @@ Output:
         page_highres_size = page_highres_image.size
 
         # Match extract_image expansion so coordinate math aligns with block_image.
-        block_rescaled_bbox = block.polygon.rescale(
-            page.polygon.size, page_highres_size
-        ).expand(self.image_expansion_ratio, self.image_expansion_ratio).bbox
-        chunk_count = (row_count + self.max_rows_per_batch - 1) // self.max_rows_per_batch
+        block_rescaled_bbox = (
+            block.polygon.rescale(page.polygon.size, page_highres_size)
+            .expand(self.image_expansion_ratio, self.image_expansion_ratio)
+            .bbox
+        )
+        chunk_count = (
+            row_count + self.max_rows_per_batch - 1
+        ) // self.max_rows_per_batch
         for i in range(0, row_count, self.max_rows_per_batch):
             chunk_index = i // self.max_rows_per_batch
             batch_row_idxs = row_idxs[i : i + self.max_rows_per_batch]
             is_last_chunk = i + self.max_rows_per_batch >= row_count
             batch_cells = [cell for cell in children if cell.row_id in batch_row_idxs]
             batch_cell_bboxes = [
-                cell.polygon.rescale(
-                    page.polygon.size, page_highres_size
-                ).bbox
+                cell.polygon.rescale(page.polygon.size, page_highres_size).bbox
                 for cell in batch_cells
             ]
             # bbox relative to the block
@@ -238,7 +242,9 @@ Output:
                 batch_bbox[2] = block_image.size[0]
                 batch_bbox[3] = block_image.size[1]
 
-            batch_image = block_image.crop(cast(tuple[int, int, int, int], tuple(batch_bbox)))
+            batch_image = block_image.crop(
+                cast(tuple[int, int, int, int], tuple(batch_bbox))
+            )
             block_html = block.format_cells(document, [], None, batch_cells)
             batch_image = self.handle_image_rotation(batch_cells, batch_image)
             batch_parsed_cells = self.rewrite_single_chunk(
@@ -298,7 +304,9 @@ Output:
                 "Iteration": total_iterations,
             },
         )
-        response = self.llm_service(prompt, image, block, TableSchema, extra_headers=headers)
+        response = self.llm_service(
+            prompt, image, block, TableSchema, extra_headers=headers
+        )
 
         if not response:
             block.update_metadata(llm_error_count=1)
@@ -308,9 +316,9 @@ Output:
         corrected_html = response.get("corrected_html", "") or ""
 
         if correction_needed is None:
-            correction_needed = bool(corrected_html) and not _string_indicates_no_corrections(
+            correction_needed = bool(
                 corrected_html
-            )
+            ) and not _string_indicates_no_corrections(corrected_html)
 
         if correction_needed is False:
             return

@@ -13,13 +13,11 @@ from marker.schema.document import Document
 
 class IgnoreTextProcessor(BaseProcessor):
     """
-    A processor for identifying and ignoring common text blocks in a document. 
+    A processor for identifying and ignoring common text blocks in a document.
     These blocks often represent repetitive or non-essential elements, such as headers, footers, or page numbers.
     """
-    block_types = (
-        BlockTypes.Text, BlockTypes.SectionHeader,
-        BlockTypes.TextInlineMath
-    )
+
+    block_types = (BlockTypes.Text, BlockTypes.SectionHeader, BlockTypes.TextInlineMath)
     common_element_threshold: Annotated[
         float,
         "The minimum ratio of pages a text block must appear on to be considered a common element.",
@@ -82,8 +80,12 @@ class IgnoreTextProcessor(BaseProcessor):
 
         counter = Counter(text)
         common = [
-            k for k, v in counter.items()
-            if (v >= len(blocks) * self.common_element_threshold or streaks[k] >= self.max_streak)
+            k
+            for k, v in counter.items()
+            if (
+                v >= len(blocks) * self.common_element_threshold
+                or streaks[k] >= self.max_streak
+            )
             and v > self.common_element_min_blocks
         ]
         if len(common) == 0:
@@ -91,5 +93,8 @@ class IgnoreTextProcessor(BaseProcessor):
 
         for t, b in zip(text, blocks):
             # Check against all common elements
-            if any(fuzz.ratio(t, common_element) > self.text_match_threshold for common_element in common):
+            if any(
+                fuzz.ratio(t, common_element) > self.text_match_threshold
+                for common_element in common
+            ):
                 b.ignore_for_output = True
