@@ -17,7 +17,8 @@ class SectionHeaderProcessor(BaseProcessor):
     """
     A processor for recognizing section headers in the document.
     """
-    block_types = (BlockTypes.SectionHeader, )
+
+    block_types = (BlockTypes.SectionHeader,)
     level_count: Annotated[
         int,
         "The number of levels to use for headings.",
@@ -46,7 +47,9 @@ class SectionHeaderProcessor(BaseProcessor):
                     line_heights[block.id] = block.line_height(document)
                 else:
                     line_heights[block.id] = 0
-                    block.ignore_for_output = True  # Don't output an empty section header
+                    block.ignore_for_output = (
+                        True  # Don't output an empty section header
+                    )
 
         flat_line_heights = list(line_heights.values())
         heading_ranges = self.bucket_headings(flat_line_heights)
@@ -71,11 +74,16 @@ class SectionHeaderProcessor(BaseProcessor):
             return []
 
         data = np.asarray(line_heights).reshape(-1, 1)
-        labels = KMeans(n_clusters=num_levels, random_state=0, n_init="auto").fit_predict(data)
+        labels = KMeans(
+            n_clusters=num_levels, random_state=0, n_init="auto"
+        ).fit_predict(data)
         data_labels = np.concatenate([data, labels.reshape(-1, 1)], axis=1)
         data_labels = np.sort(data_labels, axis=0)
 
-        cluster_means = {int(label): float(np.mean(data_labels[data_labels[:, 1] == label, 0])) for label in np.unique(labels)}
+        cluster_means = {
+            int(label): float(np.mean(data_labels[data_labels[:, 1] == label, 0]))
+            for label in np.unique(labels)
+        }
         label_max = None
         label_min = None
         heading_ranges = []
