@@ -62,7 +62,7 @@ class LLMTableProcessor(BaseLLMComplexBlockProcessor):
     ] = 2
     analysis_style: Annotated[
         str,
-        "How to structure the LLM analysis field: 'summary' or 'auto'.",
+        "How to structure the LLM analysis field: 'summary', 'deep', or 'auto'.",
     ] = "summary"
     table_rewriting_prompt: Annotated[
         str,
