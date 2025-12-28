@@ -36,7 +36,7 @@ def get_analysis_prompt_parts(style: str | None) -> tuple[str, str]:
     ----------
     style : str | None
         The style of analysis prompt to generate.
-        Can be "summary", "auto" or None for default.
+        Can be "summary", "deep", "auto" or None for default.
         Defaults to "auto" if None.
 
     Returns
@@ -49,6 +49,11 @@ def get_analysis_prompt_parts(style: str | None) -> tuple[str, str]:
         return (
             "Write a short analysis.",
             "- `analysis`: short string",
+        )
+    if normalized == "deep":
+        return (
+            "Write a deep and detailed analysis. Include step-by-step reasoning and thorough explanations.",
+            "- `analysis`: detailed string with step-by-step reasoning",
         )
     return (
         "Write an analysis. Keep it concise unless a longer reasoning process is necessary. "
