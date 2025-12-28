@@ -25,6 +25,7 @@ logger = get_logger()
 class _NormalizedSectionHeaderResponse:
     correction_needed: bool
     blocks: list
+    score: int = 5
 
 
 class LLMSectionHeaderProcessor(BaseLLMComplexBlockProcessor):
@@ -64,6 +65,8 @@ Guidelines:
     {{analysis_schema}}
     - `correction_needed`: boolean
     - `blocks`: array of objects with `id` and `html` (only include changed headers)
+    - `score`: integer 1-5 indicating confidence in the corrected header levels (5 = fully confident)
+        IMPORTANT: you must output `score` last, only after writing ALL the blocks.
 4. If `correction_needed` is false, set `blocks` to an empty array.
 
 **Example:**
@@ -184,7 +187,7 @@ Section Headers
 
         if isinstance(response, list):
             return _NormalizedSectionHeaderResponse(
-                correction_needed=len(response) > 0, blocks=response
+                correction_needed=len(response) > 0, blocks=response, score=5
             )
 
         if not isinstance(response, dict):
@@ -201,9 +204,17 @@ Section Headers
         if correction_needed is None:
             correction_needed = bool(blocks)
 
+        score = response.get("score", 5)
+        try:
+            score = int(score)
+        except (TypeError, ValueError):
+            score = 5
+        score = max(1, min(5, score))
+
         return _NormalizedSectionHeaderResponse(
             correction_needed=bool(correction_needed),
             blocks=blocks if isinstance(blocks, list) else [],
+            score=score,
         )
 
     def rewrite_blocks(self, document: Document):
@@ -237,3 +248,4 @@ class SectionHeaderSchema(BaseModel):
     analysis: str = ""
     correction_needed: bool = False
     blocks: List[BlockSchema] = Field(default_factory=list)
+    score: int = 5
