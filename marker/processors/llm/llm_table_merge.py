@@ -11,10 +11,8 @@ from marker.schema import BlockTypes
 from marker.schema.blocks import Block, TableCell
 from marker.schema.document import Document
 from marker.logger import get_logger
-from marker.telemetry import build_marker_trace_headers
 
 logger = get_logger()
-
 
 class LLMTableMergeProcessor(BaseLLMComplexBlockProcessor):
     block_types: Annotated[
@@ -27,22 +25,27 @@ class LLMTableMergeProcessor(BaseLLMComplexBlockProcessor):
     ] = 0.6
     table_start_threshold: Annotated[
         float,
-        "The maximum percentage down the page the second table can start to be considered for merging.",
+        "The maximum percentage down the page the second table can start to be considered for merging."
     ] = 0.2
     vertical_table_height_threshold: Annotated[
-        float, "The height tolerance for 2 adjacent tables to be merged into one."
+        float,
+        "The height tolerance for 2 adjacent tables to be merged into one."
     ] = 0.25
     vertical_table_distance_threshold: Annotated[
-        int, "The maximum distance between table edges for adjacency."
+        int,
+        "The maximum distance between table edges for adjacency."
     ] = 20
     horizontal_table_width_threshold: Annotated[
-        float, "The width tolerance for 2 adjacent tables to be merged into one."
+        float,
+        "The width tolerance for 2 adjacent tables to be merged into one."
     ] = 0.25
     horizontal_table_distance_threshold: Annotated[
-        int, "The maximum distance between table edges for adjacency."
+        int,
+        "The maximum distance between table edges for adjacency."
     ] = 10
     column_gap_threshold: Annotated[
-        int, "The maximum gap between columns to merge tables"
+        int,
+        "The maximum gap between columns to merge tables"
     ] = 50
     disable_tqdm: Annotated[
         bool,
@@ -55,7 +58,7 @@ class LLMTableMergeProcessor(BaseLLMComplexBlockProcessor):
     table_merge_prompt: Annotated[
         str,
         "The prompt to use for rewriting text.",
-        "Default is a string containing the Gemini rewriting prompt.",
+        "Default is a string containing the Gemini rewriting prompt."
     ] = """You're a text correction expert specializing in accurately reproducing tables from PDFs.
 You'll receive two images of tables from successive pages of a PDF.  Table 1 is from the first page, and Table 2 is from the second page.  Both tables may actually be part of the same larger table. Your job is to decide if Table 2 should be merged with Table 1, and how they should be joined.  The should only be merged if they're part of the same larger table, and Table 2 cannot be interpreted without merging.
 
@@ -153,9 +156,7 @@ Table 2
     def rewrite_blocks(self, document: Document):
         # Skip table merging if disabled via config
         if self.no_merge_tables_across_pages:
-            logger.info(
-                "Skipping table merging across pages due to --no_merge_tables_across_pages flag"
-            )
+            logger.info("Skipping table merging across pages due to --no_merge_tables_across_pages flag")
             return
 
         table_runs = []
@@ -167,98 +168,43 @@ Table 2
             for block in page_blocks:
                 merge_condition = False
                 if prev_block is not None:
-                    prev_cells = prev_block.contained_blocks(
-                        document, (BlockTypes.TableCell,)
-                    )
-                    curr_cells = block.contained_blocks(
-                        document, (BlockTypes.TableCell,)
-                    )
-                    row_match = (
-                        abs(
-                            self.get_row_count(prev_cells)
-                            - self.get_row_count(curr_cells)
-                        )
-                        < 5,
-                    )  # Similar number of rows
-                    col_match = (
-                        abs(
-                            self.get_column_count(prev_cells)
-                            - self.get_column_count(curr_cells)
-                        )
-                        < 2
-                    )
+                    prev_cells = prev_block.contained_blocks(document, (BlockTypes.TableCell,))
+                    curr_cells = block.contained_blocks(document, (BlockTypes.TableCell,))
+                    row_match = abs(self.get_row_count(prev_cells) - self.get_row_count(curr_cells)) < 5, # Similar number of rows
+                    col_match = abs(self.get_column_count(prev_cells) - self.get_column_count(curr_cells)) < 2
 
-                    subsequent_page_table = all(
-                        [
-                            prev_block.page_id == block.page_id - 1,  # Subsequent pages
-                            max(
-                                prev_block.polygon.height / page.polygon.height,
-                                block.polygon.height / page.polygon.height,
-                            )
-                            > self.table_height_threshold,  # Take up most of the page height
-                            (
-                                len(page_blocks) == 1 or prev_page_block_count == 1
-                            ),  # Only table on the page
-                            (row_match or col_match),
-                        ]
-                    )
+                    subsequent_page_table = all([
+                        prev_block.page_id == block.page_id - 1, # Subsequent pages
+                        max(prev_block.polygon.height / page.polygon.height,
+                            block.polygon.height / page.polygon.height) > self.table_height_threshold, # Take up most of the page height
+                            (len(page_blocks) == 1 or prev_page_block_count == 1), # Only table on the page
+                            (row_match or col_match)
+                        ])
 
-                    same_page_vertical_table = all(
-                        [
-                            prev_block.page_id == block.page_id,  # On the same page
-                            (1 - self.vertical_table_height_threshold)
-                            < prev_block.polygon.height / block.polygon.height
-                            < (
-                                1 + self.vertical_table_height_threshold
-                            ),  # Similar height
-                            abs(block.polygon.x_start - prev_block.polygon.x_end)
-                            < self.vertical_table_distance_threshold,  # Close together in x
-                            abs(block.polygon.y_start - prev_block.polygon.y_start)
-                            < self.vertical_table_distance_threshold,  # Close together in y
-                            row_match,
-                        ]
-                    )
+                    same_page_vertical_table = all([
+                        prev_block.page_id == block.page_id, # On the same page
+                        (1 - self.vertical_table_height_threshold) < prev_block.polygon.height / block.polygon.height < (1 + self.vertical_table_height_threshold), # Similar height
+                        abs(block.polygon.x_start - prev_block.polygon.x_end) < self.vertical_table_distance_threshold, # Close together in x
+                        abs(block.polygon.y_start - prev_block.polygon.y_start) < self.vertical_table_distance_threshold, # Close together in y
+                        row_match
+                    ])
 
-                    same_page_horizontal_table = all(
-                        [
-                            prev_block.page_id == block.page_id,  # On the same page
-                            (1 - self.horizontal_table_width_threshold)
-                            < prev_block.polygon.width / block.polygon.width
-                            < (
-                                1 + self.horizontal_table_width_threshold
-                            ),  # Similar width
-                            abs(block.polygon.y_start - prev_block.polygon.y_end)
-                            < self.horizontal_table_distance_threshold,  # Close together in y
-                            abs(block.polygon.x_start - prev_block.polygon.x_start)
-                            < self.horizontal_table_distance_threshold,  # Close together in x
-                            col_match,
-                        ]
-                    )
+                    same_page_horizontal_table = all([
+                        prev_block.page_id == block.page_id, # On the same page
+                        (1 - self.horizontal_table_width_threshold) < prev_block.polygon.width / block.polygon.width < (1 + self.horizontal_table_width_threshold), # Similar width
+                        abs(block.polygon.y_start - prev_block.polygon.y_end) < self.horizontal_table_distance_threshold, # Close together in y
+                        abs(block.polygon.x_start - prev_block.polygon.x_start) < self.horizontal_table_distance_threshold, # Close together in x
+                        col_match
+                    ])
 
-                    same_page_new_column = all(
-                        [
-                            prev_block.page_id == block.page_id,  # On the same page
-                            abs(block.polygon.x_start - prev_block.polygon.x_end)
-                            < self.column_gap_threshold,
-                            block.polygon.y_start < prev_block.polygon.y_end,
-                            block.polygon.width
-                            * (1 - self.vertical_table_height_threshold)
-                            < prev_block.polygon.width
-                            < block.polygon.width
-                            * (
-                                1 + self.vertical_table_height_threshold
-                            ),  # Similar width
-                            col_match,
-                        ]
-                    )
-                    merge_condition = any(
-                        [
-                            subsequent_page_table,
-                            same_page_vertical_table,
-                            same_page_new_column,
-                            same_page_horizontal_table,
-                        ]
-                    )
+                    same_page_new_column = all([
+                        prev_block.page_id == block.page_id, # On the same page
+                        abs(block.polygon.x_start - prev_block.polygon.x_end) < self.column_gap_threshold,
+                        block.polygon.y_start < prev_block.polygon.y_end,
+                        block.polygon.width * (1 - self.vertical_table_height_threshold) < prev_block.polygon.width  < block.polygon.width * (1 + self.vertical_table_height_threshold), # Similar width
+                        col_match
+                    ])
+                    merge_condition = any([subsequent_page_table, same_page_vertical_table, same_page_new_column, same_page_horizontal_table])
 
                 if prev_block is not None and merge_condition:
                     if prev_block not in table_run:
@@ -286,12 +232,10 @@ Table 2
         )
 
         with ThreadPoolExecutor(max_workers=self.max_concurrency) as executor:
-            for future in as_completed(
-                [
-                    executor.submit(self.process_rewriting, document, blocks)
-                    for blocks in table_runs
-                ]
-            ):
+            for future in as_completed([
+                executor.submit(self.process_rewriting, document, blocks)
+                for blocks in table_runs
+            ]):
                 future.result()  # Raise exceptions if any occurred
                 pbar.update(1)
 
@@ -306,9 +250,7 @@ Table 2
         for i in range(1, len(blocks)):
             curr_block = blocks[i]
             children = start_block.contained_blocks(document, (BlockTypes.TableCell,))
-            children_curr = curr_block.contained_blocks(
-                document, (BlockTypes.TableCell,)
-            )
+            children_curr = curr_block.contained_blocks(document, (BlockTypes.TableCell,))
             if not children or not children_curr:
                 # Happens if table/form processors didn't run
                 break
@@ -318,26 +260,13 @@ Table 2
             start_html = json_to_html(start_block.render(document))
             curr_html = json_to_html(curr_block.render(document))
 
-            prompt = self.table_merge_prompt.replace("{{table1}}", start_html).replace(
-                "{{table2}}", curr_html
-            )
+            prompt = self.table_merge_prompt.replace("{{table1}}", start_html).replace("{{table2}}", curr_html)
 
-            headers = build_marker_trace_headers(
-                source_path=document.filepath,
-                processor=self.__class__.__name__,
-                block_id=str(curr_block.id),
-                page_id=curr_block.page_id,
-                extra={
-                    "MergeStep": f"{i}/{len(blocks) - 1}",
-                    "MergeStart": str(start_block.id),
-                },
-            )
             response = self.llm_service(
                 prompt,
                 [start_image, curr_image],
                 curr_block,
                 MergeSchema,
-                extra_headers=headers,
             )
 
             if not response or ("direction" not in response or "merge" not in response):
@@ -363,12 +292,7 @@ Table 2
             start_block.structure = [b.id for b in merged_cells]
             start_block.lowres_image = merged_image
 
-    def validate_merge(
-        self,
-        cells1: List[TableCell],
-        cells2: List[TableCell],
-        direction: Literal["right", "bottom"] = "right",
-    ):
+    def validate_merge(self, cells1: List[TableCell], cells2: List[TableCell], direction: Literal['right', 'bottom'] = 'right'):
         if direction == "right":
             # Check if the number of rows is the same
             cells1_row_count = self.get_row_count(cells1)
@@ -380,13 +304,9 @@ Table 2
             cells2_col_count = self.get_column_count(cells2)
             return abs(cells1_col_count - cells2_col_count) < 2
 
-    def join_cells(
-        self,
-        cells1: List[TableCell],
-        cells2: List[TableCell],
-        direction: Literal["right", "bottom"] = "right",
-    ) -> List[TableCell]:
-        if direction == "right":
+
+    def join_cells(self, cells1: List[TableCell], cells2: List[TableCell], direction: Literal['right', 'bottom'] = 'right') -> List[TableCell]:
+        if direction == 'right':
             # Shift columns right
             col_count = self.get_column_count(cells1)
             for cell in cells2:
@@ -401,25 +321,21 @@ Table 2
         return new_cells
 
     @staticmethod
-    def join_images(
-        image1: Image.Image,
-        image2: Image.Image,
-        direction: Literal["right", "bottom"] = "right",
-    ) -> Image.Image:
+    def join_images(image1: Image.Image, image2: Image.Image, direction: Literal['right', 'bottom'] = 'right') -> Image.Image:
         # Get dimensions
         w1, h1 = image1.size
         w2, h2 = image2.size
 
-        if direction == "right":
+        if direction == 'right':
             new_height = max(h1, h2)
             new_width = w1 + w2
-            new_img = Image.new("RGB", (new_width, new_height), "white")
+            new_img = Image.new('RGB', (new_width, new_height), 'white')
             new_img.paste(image1, (0, 0))
             new_img.paste(image2, (w1, 0))
         else:
             new_width = max(w1, w2)
             new_height = h1 + h2
-            new_img = Image.new("RGB", (new_width, new_height), "white")
+            new_img = Image.new('RGB', (new_width, new_height), 'white')
             new_img.paste(image1, (0, 0))
             new_img.paste(image2, (0, h1))
         return new_img
