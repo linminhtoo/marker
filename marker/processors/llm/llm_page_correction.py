@@ -71,7 +71,7 @@ ALL_TAGS = FORMAT_TAGS + [tag for tags in BLOCK_MAP.values() for tag in tags]
 class LLMPageCorrectionProcessor(BaseLLMComplexBlockProcessor):
     analysis_style: Annotated[
         str,
-        "How to structure the LLM analysis field: 'summary' or 'auto'.",
+        "How to structure the LLM analysis field: 'summary', 'deep' or 'auto'.",
     ] = "summary"
     block_correction_prompt: Annotated[
         str | None,
